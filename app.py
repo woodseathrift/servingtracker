@@ -6,17 +6,16 @@ API_KEY = "HvgXfQKOj8xIz3vubw8K87mOrankyf22ld4dHnAS"  # Get one free at https://
 SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
 DETAIL_URL = "https://api.nal.usda.gov/fdc/v1/food/{}"
 
-st.title("🥦 USDA FoodData Central Explorer")
+st.title("🥦 USDA Food Category Lookup")
 
-# --- Search box ---
-query = st.text_input("Search for a food (e.g., 'apple', 'banana', 'cheerios')")
+# --- SEARCH INPUT ---
+query = st.text_input("Enter a food name (e.g. 'apple', 'milk', 'bread')")
 
 if st.button("Search") and query:
-    params = {"api_key": API_KEY, "query": query, "pageSize": 10}
+    params = {"query": query, "pageSize": 10, "api_key": API_KEY}
     r = requests.get(SEARCH_URL, params=params)
-
     if r.status_code != 200:
-        st.error("Search failed. Check API key or network.")
+        st.error("Search failed. Check API key or USDA service.")
     else:
         data = r.json()
         foods = data.get("foods", [])
@@ -24,43 +23,29 @@ if st.button("Search") and query:
         if not foods:
             st.warning("No foods found.")
         else:
-            # Save results in session state
-            st.session_state.search_results = {f["description"]: f["fdcId"] for f in foods}
+            # Store results in session so dropdown persists
+            st.session_state.search_results = [
+                {"name": f["description"], "fdcId": f["fdcId"]}
+                for f in foods
+            ]
 
-# --- Show dropdown if we have results ---
-if "search_results" in st.session_state:
-    choice = st.selectbox("Pick a food", list(st.session_state.search_results.keys()))
+# --- SHOW DROPDOWN IF RESULTS EXIST ---
+if "search_results" in st.session_state and st.session_state.search_results:
+    food_names = [f["name"] for f in st.session_state.search_results]
+    selected_name = st.selectbox("Select a food:", food_names)
 
-    # Save selected food ID
-    st.session_state.selected_fdcid = st.session_state.search_results[choice]
+    # Get fdcId for selected food
+    selected_food = next(
+        (f for f in st.session_state.search_results if f["name"] == selected_name),
+        None
+    )
 
-    if st.button("Load details"):
-        fdc_id = st.session_state.selected_fdcid
+    if selected_food and st.button("Get Details"):
+        fdc_id = selected_food["fdcId"]
         r2 = requests.get(DETAIL_URL.format(fdc_id), params={"api_key": API_KEY})
         if r2.status_code == 200:
-            food = r2.json()
-            st.subheader(food.get("description", "Unknown"))
-
-            # Category
-            category = food.get("foodCategory", {}).get("description", "Unknown")
-            st.write(f"**Category:** {category}")
-
-            # Nutrients (just calories for now)
-            nutrients = food.get("foodNutrients", [])
-            calories = next(
-                (n["amount"] for n in nutrients if n.get("nutrient", {}).get("name") == "Energy"),
-                None,
-            )
-            if calories:
-                st.write(f"**Calories:** {calories} kcal per 100g")
-
-            # Measures
-            if "foodPortions" in food:
-                st.write("**Common Measures:**")
-                for portion in food["foodPortions"]:
-                    measure = portion.get("modifier") or portion.get("portionDescription")
-                    gram_weight = portion.get("gramWeight")
-                    if measure and gram_weight:
-                        st.write(f"- {measure}: {gram_weight} g")
+            detail = r2.json()
+            st.write(f"**Food:** {detail.get('description', 'Unknown')}")
+            st.write(f"**Category:** {detail.get('foodCategory', 'Unknown')}")
         else:
-            st.error("Failed to load details.")
+            st.error("Failed to fetch details.")
