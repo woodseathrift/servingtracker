@@ -97,6 +97,12 @@ if st.session_state.selected_food:
                 key=f"{name}_choice"
             )
 
+            # Show recalculated portion for chosen servings
+            actual_qty = round_quarter(adjusted_qty * chosen_servings)
+            st.write(
+                f"→ {chosen_servings} serving(s) = {actual_qty:.2f} {adjusted_unit}"
+            )
+
             if st.button(f"Add {name}", key=f"{name}_add"):
                 if serving_type == "Energy-dense":
                     st.session_state.energy_servings += chosen_servings * serving_factor
