@@ -2,116 +2,118 @@ import streamlit as st
 import pandas as pd
 import datetime
 
-# ---------------- Helpers ---------------- #
-def round_quarter(x):
-    return round(x * 4) / 4
-
-# ---------------- Load FNDDS Data ---------------- #
-@st.cache_data
-def load_fndds():
-    foods = pd.read_csv("2017-2018 FNDDS At A Glance - Foods and Beverages.csv")
-    nutrients = pd.read_csv("2017-2018 FNDDS At A Glance - FNDDS Nutrient Values.csv")
-    portions = pd.read_csv("2017-2018 FNDDS At A Glance - Portions and Weights.csv")
-
-    # Keep only calories for now
-    calories = nutrients[nutrients["nutrient_desc"] == "Energy (kcal)"]
-    calories = calories[["food_code", "nutrient_value"]]
-
-    return foods, calories, portions
-
-
-foods, calories, portions = load_fndds()
-
-# ---------------- Reset Daily Session ---------------- #
+# --- RESET SERVINGS DAILY ---
 today = datetime.date.today().isoformat()
 if "day" not in st.session_state or st.session_state.day != today:
     st.session_state.day = today
     st.session_state.energy_servings = 0.0
     st.session_state.nutrient_servings = 0.0
+    st.session_state.selected_food = None
 
-st.title("🥗 FNDDS Food Tracker (2017-2018)")
+st.title("🥗 FNDDS Food Tracker (2017–2018)")
 
-# ---------------- User Search ---------------- #
-query = st.text_input("Search for a food (e.g. 'apple', 'rice')")
+# --- HELPER: round to nearest 0.25 ---
+def round_quarter(x):
+    return round(x * 4) / 4
+
+# --- LOAD FNDDS ---
+@st.cache_data
+def load_fndds():
+    foods = pd.read_csv("2017-2018 FNDDS At A Glance - Foods and Beverages.csv")
+    nutrients = pd.read_csv("2017-2018 FNDDS At A Glance - FNDDS Nutrient Values.csv")
+    portions = pd.read_csv("2017-2018 FNDDS At A Glance - Portions and Weights.csv")
+    return foods, nutrients, portions
+
+foods, nutrients, portions = load_fndds()
+
+# --- USER SEARCH ---
+query = st.text_input("Search for a food (e.g. 'apple', 'pizza')")
 
 if query:
-    matches = foods[foods["main_food_description"].str.contains(query, case=False, na=False)]
-    if matches.empty:
+    results = foods[foods["Main food description"].str.contains(query, case=False, na=False)]
+    if results.empty:
         st.warning("No foods found.")
     else:
-        options = [
-            f"{row['main_food_description']} ({row['food_code']})"
-            for _, row in matches.iterrows()
-        ]
-        choice = st.selectbox("Select a food:", options)
-        if choice:
-            code = int(choice.split("(")[-1].replace(")", ""))
-            food_row = foods.loc[foods["food_code"] == code].iloc[0]
-            st.subheader(food_row["main_food_description"])
+        food_choice = st.selectbox(
+            "Select a food:",
+            results["Main food description"].tolist(),
+            key="food_choice",
+        )
 
-            # Category
-            category = food_row["food_category_desc"]
-            st.write("**Category:**", category)
+        if food_choice:
+            chosen = results[results["Main food description"] == food_choice].iloc[0]
+            food_code = chosen["Food code"]
+            st.write(f"**Selected Food:** {food_choice}")
+            st.write(f"**Category:** {chosen['WWEIA Category description']}")
 
-            # Calories per 100g
-            kcal_row = calories.loc[calories["food_code"] == code]
-            if not kcal_row.empty:
-                kcal_per_100g = kcal_row["nutrient_value"].values[0]
-                st.write(f"**Calories:** {round_quarter(kcal_per_100g)} kcal per 100 g")
+            # --- Calories per 100g ---
+            nut = nutrients[nutrients["Food code"] == food_code]
+            if "Energy (kcal)" in nut.columns:
+                kcal_per100g = nut["Energy (kcal)"].values[0]
             else:
-                kcal_per_100g = None
-                st.warning("No calorie data available.")
+                st.error("Energy (kcal) column not found in nutrient file.")
+                kcal_per100g = None
 
-            # Portion options
-            portion_rows = portions[portions["food_code"] == code]
-            if portion_rows.empty:
-                st.info("No household portion sizes available, using grams only.")
-                grams = 100
-                choice_portion = f"100 g"
-            else:
-                portion_options = []
-                grams_lookup = {}
-                for _, r in portion_rows.iterrows():
-                    label = f"{r['portion_description']} ({round_quarter(r['gram_weight'])} g)"
-                    portion_options.append(label)
-                    grams_lookup[label] = r["gram_weight"]
+            # --- Portion options ---
+            portion_rows = portions[portions["Food code"] == food_code]
+            if not portion_rows.empty and kcal_per100g:
+                portion_options = {
+                    row["Portion description"]: row["Portion weight"] for _, row in portion_rows.iterrows()
+                }
 
-                choice_portion = st.selectbox("Choose a portion:", portion_options)
-                grams = grams_lookup[choice_portion]
-
-            # Serving classification
-            if "Vegetables" in category or "Fruits" in category:
-                base_serving = 50  # kcal
-                serving_type = "Nutrient-dense"
-            else:
-                base_serving = 100  # kcal
-                serving_type = "Energy-dense"
-
-            if kcal_per_100g:
-                cal_per_g = kcal_per_100g / 100
-                cal_this_portion = grams * cal_per_g
-                cal_this_portion = round_quarter(cal_this_portion)
-
-                servings = cal_this_portion / base_serving
-                servings = round_quarter(servings)
-
-                st.write(
-                    f"👉 {choice_portion} ≈ {cal_this_portion} kcal "
-                    f"= {servings} {serving_type} servings"
+                portion_choice = st.selectbox(
+                    "Choose a portion:",
+                    list(portion_options.keys()),
+                    key="portion_choice",
                 )
 
-                add = st.button("Add to tracker")
-                if add:
-                    if serving_type == "Energy-dense":
-                        st.session_state.energy_servings = round_quarter(
-                            st.session_state.energy_servings + servings
-                        )
-                    else:
-                        st.session_state.nutrient_servings = round_quarter(
-                            st.session_state.nutrient_servings + servings
-                        )
+                grams = portion_options[portion_choice]
+                calories = grams * (kcal_per100g / 100)
 
-# ---------------- Daily Totals ---------------- #
+                st.write(f"📏 {portion_choice} = {grams:.0f} g ≈ {calories:.0f} kcal")
+
+                # --- Classify serving ---
+                category = chosen["WWEIA Category description"].lower()
+                if "fruit" in category or "vegetable" in category:
+                    base_serving = 50
+                    serving_type = "Nutrient-dense"
+                    lower, upper = 40, 60
+                else:
+                    if calories >= 80:
+                        base_serving = 100
+                        serving_type = "Energy-dense"
+                        lower, upper = 80, 120
+                    else:
+                        base_serving = 50
+                        serving_type = "Nutrient-dense"
+                        lower, upper = 40, 60
+
+                factor = base_serving / calories if calories > 0 else 1
+                adjusted_qty = round_quarter(factor)
+
+                st.write(
+                    f"👉 Defined 1 {serving_type} serving ≈ {adjusted_qty} × {portion_choice} "
+                    f"({lower}-{upper} kcal target)"
+                )
+
+                chosen_servings = st.selectbox(
+                    f"How many servings of {food_choice}?",
+                    [0.25, 0.5, 0.75, 1, 2],
+                    index=3,
+                    key=f"{food_choice}_choice",
+                )
+
+                if st.button(f"Add {food_choice}", key=f"{food_choice}_add"):
+                    if serving_type == "Energy-dense":
+                        st.session_state.energy_servings += chosen_servings
+                    else:
+                        st.session_state.nutrient_servings += chosen_servings
+
+# --- DISPLAY TALLY ---
 st.sidebar.header("Today's Totals")
-st.sidebar.metric("Energy-dense Servings", st.session_state.energy_servings)
-st.sidebar.metric("Nutrient-dense Servings", st.session_state.nutrient_servings)
+st.sidebar.metric(
+    "Energy-dense Servings", round_quarter(st.session_state.energy_servings)
+)
+st.sidebar.metric(
+    "Nutrient-dense Servings", round_quarter(st.session_state.nutrient_servings)
+)
