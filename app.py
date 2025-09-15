@@ -1,51 +1,61 @@
 import streamlit as st
 import pandas as pd
-import datetime
+import numpy as np
 
-# --- RESET SERVINGS DAILY ---
-today = datetime.date.today().isoformat()
-if "day" not in st.session_state or st.session_state.day != today:
-    st.session_state.day = today
-    st.session_state.energy_servings = 0.0
-    st.session_state.nutrient_servings = 0.0
-    st.session_state.selected_food = None
-
-st.title("🥗 FNDDS Food Tracker (2017–2018)")
-
+# Round to nearest 0.25
 def round_quarter(x):
-    return round(x * 4) / 4
+    try:
+        return np.round(float(x) * 4) / 4
+    except:
+        return x
 
-# --- LOAD FNDDS WITH COLUMN NORMALIZATION ---
 @st.cache_data
 def load_fndds():
     foods = pd.read_csv("2017-2018 FNDDS At A Glance - Foods and Beverages.csv")
     nutrients = pd.read_csv("2017-2018 FNDDS At A Glance - FNDDS Nutrient Values.csv")
     portions = pd.read_csv("2017-2018 FNDDS At A Glance - Portions and Weights.csv")
 
-    # normalize column names
-    foods.columns = foods.columns.str.strip().str.lower()
-    nutrients.columns = nutrients.columns.str.strip().str.lower()
-    portions.columns = portions.columns.str.strip().str.lower()
+    # Normalize headers
+    foods.columns = foods.columns.str.strip()
+    nutrients.columns = nutrients.columns.str.strip()
+    portions.columns = portions.columns.str.strip()
+
     return foods, nutrients, portions
 
 foods, nutrients, portions = load_fndds()
 
-# --- USER SEARCH ---
-query = st.text_input("Search for a food (e.g. 'apple', 'pizza')")
+st.title("🍎 FNDDS Food & Nutrient Tracker")
+
+query = st.text_input("Enter a food (e.g. apple, bread, milk):")
 
 if query:
-    # check actual colnames
-    st.write("DEBUG: Foods file columns →", foods.columns.tolist())
-
-    if "main food description" in foods.columns:
-        results = foods[foods["main food description"].str.contains(query, case=False, na=False)]
+    matches = foods[foods["Main food description"].str.contains(query, case=False, na=False)]
+    
+    if matches.empty:
+        st.warning("No foods found.")
     else:
-        st.error("❌ Could not find 'main food description' column. Check CSV headers.")
-        results = pd.DataFrame()
+        choice = st.selectbox("Select a food:", matches["Main food description"].values)
+        food_code = matches[matches["Main food description"] == choice]["Food code"].values[0]
 
-    if not results.empty:
-        food_choice = st.selectbox(
-            "Select a food:",
-            results["main food description"].tolist(),
-            key="food_choice",
-        )
+        # Portion options
+        food_portions = portions[portions["Food code"] == food_code]
+
+        if food_portions.empty:
+            st.warning("No portion data found — showing values per 100 g.")
+            portion_size = 100
+            portion_label = "100 g"
+        else:
+            portion_label = st.selectbox(
+                "Select portion:",
+                [f"{d} ({w} g)" for d, w in zip(food_portions["Portion description"], food_portions["Portion weight"])]
+            )
+            portion_size = float(portion_label.split("(")[-1].replace(" g)", ""))
+
+        # Nutrients (per 100 g → scale to portion)
+        food_nutrients = nutrients[nutrients["Food code"] == food_code].iloc[0]
+        nutrient_values = food_nutrients.drop(["Food code", "Main food description", "WWEIA Category number", "WWEIA Category description"], errors="ignore")
+        scaled = (nutrient_values * (portion_size / 100)).apply(round_quarter)
+
+        # Display
+        st.subheader(f"Nutrients for {choice} ({portion_label})")
+        st.dataframe(scaled.reset_index().rename(columns={"index": "Nutrient", 0: "Amount"}))
