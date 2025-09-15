@@ -28,38 +28,31 @@ st.title("🥗 Food Tracker (Serving Based)")
 # --- USER SEARCH ---
 food_input = st.text_input("Enter a food:")
 if st.button("Search") and food_input:
-    response = requests.get(SEARCH_URL, headers=headers, params={"query": food_input})
-    if response.status_code == 200:
-        results = response.json().get("common", [])[:10]  # limit to 10 choices
+    r = requests.get(SEARCH_URL, headers=headers, params={"query": food_input})
+    if r.status_code == 200:
+        results = r.json().get("common", [])[:10]
         st.session_state.search_results = [f["food_name"] for f in results]
         if st.session_state.search_results:
             st.session_state.selected_food = st.session_state.search_results[0]
 
 # --- FOOD DROPDOWN ---
 if st.session_state.search_results:
-    if (
-        st.session_state.selected_food
-        and st.session_state.selected_food in st.session_state.search_results
-    ):
+    idx = 0
+    if st.session_state.selected_food in st.session_state.search_results:
         idx = st.session_state.search_results.index(st.session_state.selected_food)
-    else:
-        idx = 0
 
-    choice = st.selectbox(
+    st.session_state.selected_food = st.selectbox(
         "Choose a food:",
         st.session_state.search_results,
-        index=idx,
-        key="food_choice"
+        index=idx
     )
-    st.session_state.selected_food = choice
 
-# --- NUTRITION LOOKUP + SERVINGS FORM ---
+# --- NUTRITION LOOKUP ---
 if st.session_state.selected_food:
     data = {"query": st.session_state.selected_food}
-    response = requests.post(NUTR_URL, headers=headers, json=data)
-
-    if response.status_code == 200:
-        food_data = response.json()
+    r = requests.post(NUTR_URL, headers=headers, json=data)
+    if r.status_code == 200:
+        food_data = r.json()
         for item in food_data.get("foods", []):
             name = item.get("food_name", "Unknown").title()
             calories = item.get("nf_calories", 0) or 0
@@ -69,7 +62,7 @@ if st.session_state.selected_food:
             st.write(f"**{name}**")
             st.write(f"1 {serving_qty} {serving_unit} = {calories:.0f} kcal")
 
-            # --- CALCULATE SERVINGS SAFELY ---
+            # classify serving
             if calories >= 80:
                 base_serving = 100
                 serving_type = "Energy-dense"
@@ -79,19 +72,16 @@ if st.session_state.selected_food:
 
             servings = calories / base_serving if base_serving > 0 else 0
 
-            # --- FORM FOR SERVING SIZE ---
+            # --- FORM ---
             with st.form(key=f"{name}_form"):
-                portion = st.selectbox(
-                    f"How many servings of {name}?",
-                    [0.25, 0.5, 1, 2]
-                )
+                portion = st.selectbox("Servings:", [0.25, 0.5, 1, 2])
                 submitted = st.form_submit_button(f"Add {name}")
                 if submitted:
                     if serving_type == "Energy-dense":
                         st.session_state.energy_servings += servings * portion
                     else:
                         st.session_state.nutrient_servings += servings * portion
-                    st.success(f"Added {portion} serving(s) of {name} ✅")
+                    st.success(f"Added {portion} serving(s) of {name}")
 
 # --- DISPLAY TALLY ---
 st.sidebar.header("Today's Totals")
