@@ -7,9 +7,6 @@ NUTRITIONIX_APP_ID = "5107911f"
 NUTRITIONIX_APP_KEY = "39b7b779dbafa5fe4ae28af495a3c349"
 NUTRITIONIX_URL = "https://trackapi.nutritionix.com/v2/natural/nutrients"
 
-NUTRITIONIX_APP_ID = st.secrets["NUTRITIONIX_APP_ID"]
-NUTRITIONIX_API_KEY = st.secrets["NUTRITIONIX_API_KEY"]
-
 headers = {
     "x-app-id": NUTRITIONIX_APP_ID,
     "x-app-key": NUTRITIONIX_API_KEY,
