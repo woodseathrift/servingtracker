@@ -10,7 +10,7 @@ SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
 @st.cache_data
 def load_fped():
     # Adjust path if you put it in a subfolder (e.g. "data/FPED_1718.xls")
-    fped = pd.read_excel("FPED_1718.xls")
+    fped = pd.read_csv("FPED_1718.csv")
     return fped
 
 fped = load_fped()
