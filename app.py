@@ -100,13 +100,16 @@ if st.session_state.get("selected_item"):
     # classify food safely
     tags = item.get("tags")
     food_group = ""
+    category = item.get("food_category", "") or item.get("brand_name", "")
     
     if isinstance(tags, dict):
         raw_group = tags.get("food_group")
         if isinstance(raw_group, str):
             food_group = raw_group.lower()
-            
-    is_fruitveg = any(x in food_group for x in ["fruit", "vegetable", "veg"])
+
+    text_to_check = f"{food_group} {category}".lower()
+
+    is_fruitveg = any(x in text_to_check for x in ["produce"]) 
 
     if is_fruitveg:
         base_serving = 50
