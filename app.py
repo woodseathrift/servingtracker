@@ -56,12 +56,11 @@ if st.session_state.selected_food:
 
     if response.status_code == 200:
         food_data = response.json()
-
         for item in food_data.get("foods", []):
-            name = item["food_name"].title()
-            calories = item["nf_calories"]
-            qty = item["serving_qty"]
-            unit = item["serving_unit"]
+            name = item.get("food_name", "Unknown").title()
+            calories = item.get("nf_calories", 0)
+            qty = item.get("serving_qty", 1)
+            unit = item.get("serving_unit", "g")
 
             st.write(f"### {name}")
             st.write(f"Nutritionix says: {qty} {unit} = {calories:.0f} kcal")
@@ -90,8 +89,11 @@ if st.session_state.selected_food:
                     serving_type = "Nutrient-dense"
                     lower, upper = 40, 60
 
-            # --- ADJUST SERVING SIZE TO SIMPLE VOLUME ---
-            factor = base_serving / calories
+            # --- ADJUST SERVING SIZE ---
+            if calories > 0:
+                factor = base_serving / calories
+            else:
+                factor = 1
             adjusted_qty = round_quarter(qty * factor)
 
             st.write(
@@ -103,7 +105,7 @@ if st.session_state.selected_food:
             chosen_servings = st.selectbox(
                 f"How many servings of {name}?",
                 [0.25, 0.5, 0.75, 1, 2],
-                index=3,  # default = 1
+                index=3,
                 key=f"{name}_choice",
             )
 
