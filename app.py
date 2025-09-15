@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 import datetime
-import math
 
 # --- API SETUP ---
 NUTRITIONIX_APP_ID = "5107911f"
@@ -54,8 +53,10 @@ if st.session_state.search_results:
 if st.session_state.selected_food:
     data = {"query": st.session_state.selected_food}
     response = requests.post(NUTRITIONIX_URL, headers=headers, json=data)
+
     if response.status_code == 200:
         food_data = response.json()
+
         for item in food_data.get("foods", []):
             name = item["food_name"].title()
             calories = item["nf_calories"]
@@ -90,9 +91,8 @@ if st.session_state.selected_food:
                     lower, upper = 40, 60
 
             # --- ADJUST SERVING SIZE TO SIMPLE VOLUME ---
-            factor = 100 / calories if serving_type == "Energy-dense" else 50 / calories
-            adjusted_qty = qty * factor
-            adjusted_qty = round_quarter(adjusted_qty)  # force 0.25 increments
+            factor = base_serving / calories
+            adjusted_qty = round_quarter(qty * factor)
 
             st.write(
                 f"👉 Defined 1 {serving_type} serving ≈ {adjusted_qty} {unit} "
@@ -103,7 +103,7 @@ if st.session_state.selected_food:
             chosen_servings = st.selectbox(
                 f"How many servings of {name}?",
                 [0.25, 0.5, 0.75, 1, 2],
-                index=3,  # default to 1
+                index=3,  # default = 1
                 key=f"{name}_choice",
             )
 
@@ -119,8 +119,8 @@ if st.session_state.selected_food:
 # --- DISPLAY TALLY ---
 st.sidebar.header("Today's Totals")
 st.sidebar.metric(
-    "Energy-dense Servings", round(st.session_state.energy_servings, 2)
+    "Energy-dense Servings", round(st.session_state.energy_servings * 4) / 4
 )
 st.sidebar.metric(
-    "Nutrient-dense Servings", round(st.session_state.nutrient_servings, 2)
+    "Nutrient-dense Servings", round(st.session_state.nutrient_servings * 4) / 4
 )
