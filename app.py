@@ -1,51 +1,55 @@
 import streamlit as st
 import requests
+import pandas as pd
 
-OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl"
+# --- CONFIG ---
+FDC_API_KEY = "HvgXfQKOj8xIz3vubw8K87mOrankyf22ld4dHnAS"  # <-- replace with your USDA API key
+SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
 
-st.title("🥗 Food Category Lookup (Open Food Facts)")
+# Load FPED locally
+@st.cache_data
+def load_fped():
+    # Download FPED 2017-2018 CSV and put in project folder
+    fped = pd.read_csv("FPED_1718.csv")
+    return fped
 
-# Initialize session state
-if "results" not in st.session_state:
-    st.session_state.results = []
+fped = load_fped()
 
-query = st.text_input("Enter a food (e.g. apple, milk, cheerios):")
+st.title("🥗 USDA Food Classifier with FPED")
 
+# --- SEARCH ---
+query = st.text_input("Search for a food (e.g. 'apple', 'milk')")
 if st.button("Search") and query:
     params = {
-        "search_terms": query,
-        "search_simple": 1,
-        "action": "process",
-        "json": 1,
-        "page_size": 20
+        "api_key": FDC_API_KEY,
+        "query": query,
+        "pageSize": 10,
+        "dataType": ["Foundation", "SR Legacy"]  # avoid Branded for now
     }
-    r = requests.get(OFF_SEARCH_URL, params=params)
-
+    r = requests.get(SEARCH_URL, params=params)
     if r.status_code != 200:
-        st.error("Failed to fetch data from Open Food Facts.")
-        st.session_state.results = []
+        st.error("API call failed")
     else:
-        data = r.json()
-        products = data.get("products", [])
-
-        # Filter out foods with no categories
-        filtered = [p for p in products if p.get("categories")]
-        st.session_state.results = filtered
-
-if st.session_state.results:
-    names = [p.get("product_name", "Unknown") for p in st.session_state.results]
-    choice = st.selectbox("Pick a food:", names, key="food_picker")
-
-    # Find the selected product
-    idx = names.index(choice)
-    product = st.session_state.results[idx]
-
-    st.subheader(choice)
-    st.write("**Categories:**", product.get("categories", "Unknown"))
-
-    nutriments = product.get("nutriments", {})
-    kcal = nutriments.get("energy-kcal_100g")
-    if kcal:
-        st.write(f"**Calories per 100g:** {kcal} kcal")
-    else:
-        st.write("Calories: Not available")
+        results = r.json().get("foods", [])
+        if not results:
+            st.warning("No foods found")
+        else:
+            food_names = [f"{f['description']} ({f['fdcId']})" for f in results]
+            selected = st.selectbox("Pick a food", food_names)
+            chosen = results[food_names.index(selected)]
+            
+            st.write("**USDA Food Found:**", chosen["description"])
+            food_code = chosen.get("foodCode")  # FNDDS code
+            
+            if food_code:
+                st.write("FNDDS food code:", food_code)
+                
+                # Lookup in FPED
+                row = fped.loc[fped["food_code"] == int(food_code)]
+                if not row.empty:
+                    st.subheader("FPED Classification")
+                    st.dataframe(row.T)  # show all food pattern equivalents
+                else:
+                    st.warning("No FPED mapping found for this food.")
+            else:
+                st.warning("This USDA food has no FNDDS code → cannot match FPED.")
