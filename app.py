@@ -67,7 +67,8 @@ if st.session_state.selected_food:
 
             # --- CLASSIFY SERVING ---
             tags = item.get("tags", {})
-            food_group = tags.get("food_group") or ""
+            food_group_raw = tags.get("food_group", "")
+            food_group = str(food_group_raw).lower()
             name_lower = name.lower()
 
             if (
