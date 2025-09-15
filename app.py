@@ -5,13 +5,12 @@ import datetime
 # --- API SETUP ---
 NUTRITIONIX_APP_ID = "5107911f"
 NUTRITIONIX_APP_KEY = "39b7b779dbafa5fe4ae28af495a3c349"
-SEARCH_URL = "https://trackapi.nutritionix.com/v2/search/instant"
 NUTRITIONIX_URL = "https://trackapi.nutritionix.com/v2/natural/nutrients"
 
 headers = {
     "x-app-id": NUTRITIONIX_APP_ID,
     "x-app-key": NUTRITIONIX_APP_KEY,
-    "Content-Type": "application/json",
+    "Content-Type": "application/json"
 }
 
 # --- RESET SERVINGS DAILY ---
@@ -20,110 +19,72 @@ if "day" not in st.session_state or st.session_state.day != today:
     st.session_state.day = today
     st.session_state.energy_servings = 0.0
     st.session_state.nutrient_servings = 0.0
-    st.session_state.search_results = []
-    st.session_state.selected_food = None
 
 st.title("🥗 Food Tracker (Serving Based)")
 
-# --- HELPER: round to nearest 0.25 ---
-def round_quarter(x):
-    return round(x * 4) / 4
-
-# --- USER SEARCH ---
+# --- USER INPUT ---
 food_input = st.text_input("Enter a food:")
-
-if food_input:
-    r = requests.get(SEARCH_URL, headers=headers, params={"query": food_input})
-    if r.status_code == 200:
-        results = r.json().get("common", [])[:10]
-        st.session_state.search_results = [f["food_name"] for f in results]
-        if st.session_state.search_results:
-            st.session_state.selected_food = st.session_state.search_results[0]
-
-if st.session_state.search_results:
-    choice = st.selectbox(
-        "Select a food:",
-        st.session_state.search_results,
-        index=0,
-        key="food_choice",
-    )
-    st.session_state.selected_food = choice
-
-# --- FETCH NUTRITION INFO ---
-if st.session_state.selected_food:
-    data = {"query": st.session_state.selected_food}
+if st.button("Search") and food_input:
+    data = {"query": food_input}
     response = requests.post(NUTRITIONIX_URL, headers=headers, json=data)
 
     if response.status_code == 200:
         food_data = response.json()
         for item in food_data.get("foods", []):
-            name = item.get("food_name", "Unknown").title()
-            calories = item.get("nf_calories", 0)
-            qty = item.get("serving_qty", 1)
-            unit = item.get("serving_unit", "g")
+            name = item["food_name"].title()
+            calories = item["nf_calories"]
+            serving_qty = item["serving_qty"]
+            serving_unit = item["serving_unit"]
+            food_group = item.get("tags", {}).get("food_group", "").lower()
 
-            st.write(f"### {name}")
-            st.write(f"Nutritionix says: {qty} {unit} = {calories:.0f} kcal")
+            st.write(f"**{name}**")
+            st.write(f"Nutritionix serving: {serving_qty} {serving_unit} = {calories:.0f} kcal")
 
-            # --- CLASSIFY SERVING ---
-            tags = item.get("tags", {})
-            food_group_raw = tags.get("food_group", "")
-            food_group = str(food_group_raw).lower()
-            name_lower = name.lower()
-
-            if (
-                "fruit" in food_group
-                or "vegetable" in food_group
-                or "fruit" in name_lower
-                or "vegetable" in name_lower
-            ):
-                base_serving = 50
+            # --- CALCULATE BASE SERVING ---
+            if "fruit" in food_group or "vegetable" in food_group:
+                base_serving = 50   # fruits/vegetables → nutrient-dense
                 serving_type = "Nutrient-dense"
-                lower, upper = 40, 60
             else:
-                if calories >= 80:
-                    base_serving = 100
-                    serving_type = "Energy-dense"
-                    lower, upper = 80, 120
-                else:
-                    base_serving = 50
-                    serving_type = "Nutrient-dense"
-                    lower, upper = 40, 60
+                base_serving = 100  # everything else → energy-dense
+                serving_type = "Energy-dense"
 
-            # --- ADJUST SERVING SIZE ---
-            if calories > 0:
-                factor = base_serving / calories
-            else:
-                factor = 1
-            adjusted_qty = round_quarter(qty * factor)
+            servings = calories / base_serving
 
-            st.write(
-                f"👉 Defined 1 {serving_type} serving ≈ {adjusted_qty} {unit} "
-                f"({lower}-{upper} kcal target)"
-            )
+            # round servings to nearest 0.25
+            servings = round(servings * 4) / 4.0
 
             # --- USER CHOICE ---
-            chosen_servings = st.selectbox(
-                f"How many servings of {name}?",
-                [0.25, 0.5, 0.75, 1, 2],
-                index=3,
-                key=f"{name}_choice",
-            )
+            with st.form(key=f"{name}_form"):
+                choice = st.selectbox(
+                    f"How many servings of {name}? ({serving_type})",
+                    [0.25, 0.5, 0.75, 1, 2, 3],
+                    index=3  # default 1
+                )
+                submitted = st.form_submit_button(f"Add {name}")
+                if submitted:
+                    if serving_type == "Energy-dense":
+                        st.session_state.energy_servings += servings * choice
+                    else:
+                        st.session_state.nutrient_servings += servings * choice
 
-            actual_qty = round_quarter(adjusted_qty * chosen_servings)
-            st.write(f"→ {chosen_servings} serving(s) = {actual_qty} {unit}")
-
-            if st.button(f"Add {name}", key=f"{name}_add"):
-                if serving_type == "Energy-dense":
-                    st.session_state.energy_servings += chosen_servings
-                else:
-                    st.session_state.nutrient_servings += chosen_servings
+# --- MANUAL ENTRY ---
+st.sidebar.subheader("➕ Add Servings Manually")
+manual_type = st.sidebar.selectbox(
+    "Serving type:",
+    ["Nutrient-dense", "Energy-dense"]
+)
+manual_qty = st.sidebar.selectbox(
+    "How many servings?",
+    [0.25, 0.5, 0.75, 1, 2, 3, 4],
+    index=3  # default 1
+)
+if st.sidebar.button("Add Manual Serving"):
+    if manual_type == "Energy-dense":
+        st.session_state.energy_servings += manual_qty
+    else:
+        st.session_state.nutrient_servings += manual_qty
 
 # --- DISPLAY TALLY ---
 st.sidebar.header("Today's Totals")
-st.sidebar.metric(
-    "Energy-dense Servings", round(st.session_state.energy_servings * 4) / 4
-)
-st.sidebar.metric(
-    "Nutrient-dense Servings", round(st.session_state.nutrient_servings * 4) / 4
-)
+st.sidebar.metric("Energy-dense Servings", round(st.session_state.energy_servings, 2))
+st.sidebar.metric("Nutrient-dense Servings", round(st.session_state.nutrient_servings, 2))
