@@ -14,6 +14,10 @@ headers = {
     "Content-Type": "application/json"
 }
 
+# --- HELPERS ---
+def round_quarter(x):
+    return round(x * 4) / 4
+
 # --- RESET SERVINGS DAILY ---
 today = datetime.date.today().isoformat()
 if "day" not in st.session_state or st.session_state.day != today:
@@ -60,19 +64,29 @@ if st.session_state.selected_food:
             if calories >= 80:
                 base_serving = 100   # Energy-dense reference
                 serving_type = "Energy-dense"
+                lower, upper = 80, 120
             else:
                 base_serving = 50    # Nutrient-dense reference
                 serving_type = "Nutrient-dense"
+                lower, upper = 40, 60
 
-            # Scale serving so that 1 "serving" matches base_serving calories
-            serving_ratio = base_serving / calories
-            adjusted_qty = serving_qty * serving_ratio
-            adjusted_unit = serving_unit
+            if lower <= calories <= upper:
+                # Already acceptable → use Nutritionix portion directly
+                adjusted_qty = serving_qty
+                adjusted_unit = serving_unit
+            else:
+                # Too high/low → rescale to base serving, round to 0.25
+                serving_ratio = base_serving / calories
+                adjusted_qty = round_quarter(serving_qty * serving_ratio)
+                adjusted_unit = serving_unit
+
+            # Each adjusted portion = 1 serving
+            serving_factor = 1.0
 
             st.write(f"**{name}**")
             st.write(
-                f"1 {adjusted_qty:.2f} {adjusted_unit} = {base_serving} kcal "
-                f"({serving_type} serving)"
+                f"1 {adjusted_qty:.2f} {adjusted_unit} = "
+                f"{base_serving} kcal ({serving_type} serving)"
             )
 
             # --- USER CHOICE ---
@@ -85,15 +99,12 @@ if st.session_state.selected_food:
 
             if st.button(f"Add {name}", key=f"{name}_add"):
                 if serving_type == "Energy-dense":
-                    st.session_state.energy_servings += chosen_servings
+                    st.session_state.energy_servings += chosen_servings * serving_factor
                 else:
-                    st.session_state.nutrient_servings += chosen_servings
+                    st.session_state.nutrient_servings += chosen_servings * serving_factor
 
 
 # --- DISPLAY TALLY ---
-def round_quarter(x):
-    return round(x * 4) / 4
-
 st.sidebar.header("Today's Totals")
 st.sidebar.metric(
     "Energy-dense Servings",
