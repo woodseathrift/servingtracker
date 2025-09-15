@@ -37,11 +37,14 @@ if st.button("Search") and food_input:
 
 # --- FOOD DROPDOWN ---
 if st.session_state.search_results:
-    idx = (
-        st.session_state.search_results.index(st.session_state.selected_food)
-        if st.session_state.selected_food in st.session_state.search_results
-        else 0
-    )
+    if (
+        st.session_state.selected_food
+        and st.session_state.selected_food in st.session_state.search_results
+    ):
+        idx = st.session_state.search_results.index(st.session_state.selected_food)
+    else:
+        idx = 0
+
     choice = st.selectbox(
         "Choose a food:",
         st.session_state.search_results,
