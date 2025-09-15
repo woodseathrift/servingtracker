@@ -1,4 +1,4 @@
-
+import streamlit as st
 import requests
 import datetime
 
@@ -9,7 +9,7 @@ NUTRITIONIX_URL = "https://trackapi.nutritionix.com/v2/natural/nutrients"
 
 headers = {
     "x-app-id": NUTRITIONIX_APP_ID,
-    "x-app-key": NUTRITIONIX_API_KEY,
+    "x-app-key": NUTRITIONIX_APP_KEY,
     "Content-Type": "application/json"
 }
 
