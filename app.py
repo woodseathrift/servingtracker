@@ -60,12 +60,12 @@ if st.button("Search") and search_text:
         st.session_state.selected_food_name = options[0] if options else None
         st.session_state.selected_item = None
 
-if st.session_state.search_results:
+if st.session_state.get("search_results"):
     sel = st.selectbox(
         "Pick a result",
         st.session_state.search_results,
         index=0,
-        key="search_results_select"
+        key="food_picker"
     )
     st.session_state.selected_food_name = sel
 
@@ -87,18 +87,19 @@ if st.session_state.search_results:
 def round_to_quarter(x: float) -> float:
     return round(x * 4) / 4.0
 
-if st.session_state.selected_item:
+if st.session_state.get("selected_item"):
     item = st.session_state.selected_item
-    name = item["food_name"].title()
-    calories = item["nf_calories"]
-    qty = item["serving_qty"]
-    unit = item["serving_unit"]
+    name = item.get("food_name", "Unknown").title()
+    calories = item.get("nf_calories", 0)
+    qty = item.get("serving_qty", 1)
+    unit = item.get("serving_unit", "unit")
 
     st.markdown(f"**{name}**")
     st.write(f"Nutritionix: {qty} {unit} = {calories:.0f} kcal")
 
-    # classify food
-    food_group = (item.get("tags", {}).get("food_group") or "").lower()
+    # classify food safely
+    tags = item.get("tags") or {}
+    food_group = (tags.get("food_group") or "").lower()
     is_fruitveg = any(x in food_group for x in ["fruit", "vegetable", "veg"])
 
     if is_fruitveg:
@@ -108,26 +109,26 @@ if st.session_state.selected_item:
         base_serving = 100
         serving_type = "Energy-dense"
 
-    # adjust serving qty to target calories
-    ratio = base_serving / calories
-    adj_qty = round_to_quarter(qty * ratio)
-    adj_calories = calories * (adj_qty / qty)
+    if calories > 0 and qty > 0:
+        ratio = base_serving / calories
+        adj_qty = round_to_quarter(qty * ratio)
+        adj_calories = calories * (adj_qty / qty)
 
-    st.write(f"**1 serving = {adj_qty} {unit} (~{adj_calories:.0f} kcal)** [{serving_type}]")
+        st.write(f"**1 serving = {adj_qty} {unit} (~{adj_calories:.0f} kcal)** [{serving_type}]")
 
-    with st.form(key=f"{name}_form"):
-        choice = st.selectbox(
-            f"How many servings of {name}?",
-            [0.25, 0.5, 0.75, 1, 1.5, 2],
-            index=3  # default = 1
-        )
-        submitted = st.form_submit_button("Add")
-        if submitted:
-            if serving_type == "Energy-dense":
-                st.session_state.energy_servings += choice
-            else:
-                st.session_state.nutrient_servings += choice
-            st.success(f"Added {choice} {serving_type} serving(s) of {name}!")
+        with st.form(key=f"{name}_form"):
+            choice = st.selectbox(
+                f"How many servings of {name}?",
+                [0.25, 0.5, 0.75, 1, 1.5, 2],
+                index=3
+            )
+            submitted = st.form_submit_button("Add")
+            if submitted:
+                if serving_type == "Energy-dense":
+                    st.session_state.energy_servings += choice
+                else:
+                    st.session_state.nutrient_servings += choice
+                st.success(f"Added {choice} {serving_type} serving(s) of {name}!")
 
 # -----------------------
 # MANUAL ENTRY
