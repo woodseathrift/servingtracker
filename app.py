@@ -109,9 +109,11 @@ if st.session_state.get("selected_item"):
 
     text_to_check = f"{food_group} {category}".lower()
 
-    is_fruitveg = any(x in text_to_check for x in ["produce"]) 
+    # --- Rules ---
+    is_produce = "produce" in text_to_check
+    is_excluded = any(x in text_to_check for x in ["juice", "drink", "pie", "dessert", "jam", "sauce"])
 
-    if is_fruitveg:
+    if is_produce and not is_excluded:
         base_serving = 50
         serving_type = "Nutrient-dense"
     else:
