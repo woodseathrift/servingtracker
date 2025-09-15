@@ -70,19 +70,20 @@ if food_input:
                             f"= ~{base_serving} kcal ({serving_type})"
                         )
 
-                        # --- Serving selection ---
-                        servings_choice = st.selectbox(
-                            f"How many servings of {name}?",
-                            [0.25, 0.5, 0.75, 1, 2, 3],
-                            index=3,
-                            key=f"{name}_choice"
-                        )
-
-                        if st.button(f"Add {name}", key=f"add_{name}"):
-                            if serving_type == "Energy-dense":
-                                st.session_state.energy_servings += servings_choice
-                            else:
-                                st.session_state.nutrient_servings += servings_choice
+                        # --- FORM to add servings ---
+                        with st.form(key=f"{name}_form"):
+                            servings_choice = st.selectbox(
+                                f"How many servings of {name}?",
+                                [0.25, 0.5, 0.75, 1, 2, 3],
+                                index=3
+                            )
+                            submitted = st.form_submit_button(f"Add {name}")
+                            if submitted:
+                                if serving_type == "Energy-dense":
+                                    st.session_state.energy_servings += servings_choice
+                                else:
+                                    st.session_state.nutrient_servings += servings_choice
+                                st.success(f"Added {servings_choice} {serving_type} serving(s) of {name}")
 
 # --- MANUAL ENTRY ---
 st.sidebar.subheader("➕ Add Servings Manually")
