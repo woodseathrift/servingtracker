@@ -27,8 +27,10 @@ food_input = st.text_input("Enter a food:")
 if st.button("Search") and food_input:
     data = {"query": food_input}
     response = requests.post(NUTRITIONIX_URL, headers=headers, json=data)
+
     if response.status_code == 200:
         food_data = response.json()
+
         for item in food_data.get("foods", []):
             name = item["food_name"].title()
             calories = item["nf_calories"]
@@ -48,18 +50,18 @@ if st.button("Search") and food_input:
 
             servings = calories / base_serving
 
-with st.form(key=f"{name}_form"):
-    choice = st.selectbox(
-        f"How many servings of {name}?",
-        [0.25, 0.5, 1, 2]
-    )
-    submitted = st.form_submit_button(f"Add {name}")
-    if submitted:
-        if serving_type == "Energy-dense":
-            st.session_state.energy_servings += servings * choice
-        else:
-            st.session_state.nutrient_servings += servings * choice
-
+            # --- FORM FOR THIS FOOD ITEM ---
+            with st.form(key=f"{name}_form"):
+                choice = st.selectbox(
+                    f"How many servings of {name}?",
+                    [0.25, 0.5, 1, 2]
+                )
+                submitted = st.form_submit_button(f"Add {name}")
+                if submitted:
+                    if serving_type == "Energy-dense":
+                        st.session_state.energy_servings += servings * choice
+                    else:
+                        st.session_state.nutrient_servings += servings * choice
 
 # --- DISPLAY TALLY ---
 st.sidebar.header("Today's Totals")
