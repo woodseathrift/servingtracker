@@ -27,7 +27,8 @@ st.title("🥗 Food Tracker (Serving Based)")
 
 # --- USER SEARCH ---
 food_input = st.text_input("Enter a food:")
-if st.button("Search") and food_input:
+
+if food_input:  # only search if text is entered
     r = requests.get(SEARCH_URL, headers=headers, params={"query": food_input})
     if r.status_code == 200:
         results = r.json().get("common", [])[:10]
