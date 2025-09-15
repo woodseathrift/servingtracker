@@ -34,7 +34,7 @@ if food_input and st.button("Search"):
         "api_key": FDC_API_KEY,
         "query": food_input,
         "pageSize": 15,
-        "dataType": ["Foundation", "SR Legacy"],  # avoid Branded
+        "dataType": "Foundation,SR Legacy",  # ✅ must be comma string
     }
     r = requests.get(SEARCH_URL, params=params)
 
@@ -45,6 +45,8 @@ if food_input and st.button("Search"):
         st.session_state.search_results = filtered
         if filtered:
             st.session_state.selected_food = filtered[0]
+    else:
+        st.error(f"USDA request failed: {r.status_code}")
 
 # --- FOOD PICKER ---
 if st.session_state.search_results:
@@ -82,11 +84,12 @@ if st.session_state.selected_food:
         lower, upper = 80, 120
 
     # --- Calories (if available) ---
-    nutrients = {
-        n["nutrientName"].lower(): n["value"]
-        for n in chosen.get("foodNutrients", [])
-    }
-    kcal = nutrients.get("energy", None)
+    kcal = None
+    for n in chosen.get("foodNutrients", []):
+        name = n.get("nutrientName", "").lower()
+        if "energy" in name and "kj" not in name:  # exclude kilojoules
+            kcal = n.get("value", None)
+            break
 
     if kcal:
         st.write(f"USDA reports ~{kcal:.0f} kcal per 100 g")
