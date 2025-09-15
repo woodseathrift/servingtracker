@@ -6,7 +6,7 @@ import datetime
 NUTRITIONIX_APP_ID = "5107911f"
 NUTRITIONIX_APP_KEY = "39b7b779dbafa5fe4ae28af495a3c349"
 SEARCH_URL = "https://trackapi.nutritionix.com/v2/search/instant"
-NUTR_URL = "https://trackapi.nutritionix.com/v2/natural/nutrients"
+NUTRITIONIX_URL = "https://trackapi.nutritionix.com/v2/natural/nutrients"
 
 headers = {
     "x-app-id": NUTRITIONIX_APP_ID,
@@ -25,66 +25,81 @@ if "day" not in st.session_state or st.session_state.day != today:
 
 st.title("🥗 Food Tracker (Serving Based)")
 
-# --- USER SEARCH ---
+# --- SEARCH ---
 food_input = st.text_input("Enter a food:")
 
-if food_input:  # only search if text is entered
+if food_input:
     r = requests.get(SEARCH_URL, headers=headers, params={"query": food_input})
     if r.status_code == 200:
         results = r.json().get("common", [])[:10]
         st.session_state.search_results = [f["food_name"] for f in results]
-        if st.session_state.search_results:
-            st.session_state.selected_food = st.session_state.search_results[0]
 
-# --- FOOD DROPDOWN ---
+# --- DROPDOWN FOR CHOICES ---
 if st.session_state.search_results:
-    idx = 0
-    if st.session_state.selected_food in st.session_state.search_results:
-        idx = st.session_state.search_results.index(st.session_state.selected_food)
-
-    st.session_state.selected_food = st.selectbox(
+    choice = st.selectbox(
         "Choose a food:",
         st.session_state.search_results,
-        index=idx
+        key="food_choice"
     )
+    st.session_state.selected_food = choice
 
-# --- NUTRITION LOOKUP ---
+# --- GET NUTRIENTS ---
 if st.session_state.selected_food:
     data = {"query": st.session_state.selected_food}
-    r = requests.post(NUTR_URL, headers=headers, json=data)
-    if r.status_code == 200:
-        food_data = r.json()
+    response = requests.post(NUTRITIONIX_URL, headers=headers, json=data)
+
+    if response.status_code == 200:
+        food_data = response.json()
         for item in food_data.get("foods", []):
-            name = item.get("food_name", "Unknown").title()
-            calories = item.get("nf_calories", 0) or 0
-            serving_qty = item.get("serving_qty", 1)
-            serving_unit = item.get("serving_unit", "")
+            name = item["food_name"].title()
+            calories = item["nf_calories"]
+            serving_qty = item["serving_qty"]
+            serving_unit = item["serving_unit"]
 
-            st.write(f"**{name}**")
-            st.write(f"1 {serving_qty} {serving_unit} = {calories:.0f} kcal")
-
-            # classify serving
+            # --- DEFINE SERVING ---
             if calories >= 80:
-                base_serving = 100
+                base_serving = 100   # Energy-dense reference
                 serving_type = "Energy-dense"
             else:
-                base_serving = 50
+                base_serving = 50    # Nutrient-dense reference
                 serving_type = "Nutrient-dense"
 
-            servings = calories / base_serving if base_serving > 0 else 0
+            # Scale serving so that 1 "serving" matches base_serving calories
+            serving_ratio = base_serving / calories
+            adjusted_qty = serving_qty * serving_ratio
+            adjusted_unit = serving_unit
 
-            # --- FORM ---
-            with st.form(key=f"{name}_form"):
-                portion = st.selectbox("Servings:", [0.25, 0.5, 1, 2])
-                submitted = st.form_submit_button(f"Add {name}")
-                if submitted:
-                    if serving_type == "Energy-dense":
-                        st.session_state.energy_servings += servings * portion
-                    else:
-                        st.session_state.nutrient_servings += servings * portion
-                    st.success(f"Added {portion} serving(s) of {name}")
+            st.write(f"**{name}**")
+            st.write(
+                f"1 {adjusted_qty:.2f} {adjusted_unit} = {base_serving} kcal "
+                f"({serving_type} serving)"
+            )
+
+            # --- USER CHOICE ---
+            chosen_servings = st.selectbox(
+                f"How many servings of {name}?",
+                [0.25, 0.5, 0.75, 1, 2],
+                index=3,  # default to 1
+                key=f"{name}_choice"
+            )
+
+            if st.button(f"Add {name}", key=f"{name}_add"):
+                if serving_type == "Energy-dense":
+                    st.session_state.energy_servings += chosen_servings
+                else:
+                    st.session_state.nutrient_servings += chosen_servings
+
 
 # --- DISPLAY TALLY ---
+def round_quarter(x):
+    return round(x * 4) / 4
+
 st.sidebar.header("Today's Totals")
-st.sidebar.metric("Energy-dense Servings", round(st.session_state.energy_servings, 2))
-st.sidebar.metric("Nutrient-dense Servings", round(st.session_state.nutrient_servings, 2))
+st.sidebar.metric(
+    "Energy-dense Servings",
+    round_quarter(st.session_state.energy_servings)
+)
+st.sidebar.metric(
+    "Nutrient-dense Servings",
+    round_quarter(st.session_state.nutrient_servings)
+)
