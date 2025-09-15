@@ -48,17 +48,18 @@ if st.button("Search") and food_input:
 
             servings = calories / base_serving
 
-            choice = st.selectbox(
-                f"How many servings of {name}?",
-                [0.25, 0.5, 1, 2],
-                key=name
-            )
+with st.form(key=f"{name}_form"):
+    choice = st.selectbox(
+        f"How many servings of {name}?",
+        [0.25, 0.5, 1, 2]
+    )
+    submitted = st.form_submit_button(f"Add {name}")
+    if submitted:
+        if serving_type == "Energy-dense":
+            st.session_state.energy_servings += servings * choice
+        else:
+            st.session_state.nutrient_servings += servings * choice
 
-            if st.button(f"Add {name}"):
-                if serving_type == "Energy-dense":
-                    st.session_state.energy_servings += servings * choice
-                else:
-                    st.session_state.nutrient_servings += servings * choice
 
 # --- DISPLAY TALLY ---
 st.sidebar.header("Today's Totals")
