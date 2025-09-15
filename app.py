@@ -98,8 +98,11 @@ if st.session_state.get("selected_item"):
     st.write(f"Nutritionix: {qty} {unit} = {calories:.0f} kcal")
 
     # classify food safely
-    tags = item.get("tags") or {}
-    food_group = (tags.get("food_group") or "").lower()
+    tags = item.get("tags", {})
+    if isinstance(tags, dict):
+        food_group = (tags.get("food_group") or "").lower()
+    else:
+        food_group = ""
     is_fruitveg = any(x in food_group for x in ["fruit", "vegetable", "veg"])
 
     if is_fruitveg:
