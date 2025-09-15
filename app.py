@@ -5,39 +5,60 @@ import requests
 FDC_API_KEY = "HvgXfQKOj8xIz3vubw8K87mOrankyf22ld4dHnAS"
 SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
 
-# --- APP ---
-st.title("🥗 USDA Food Category Filter")
+NUTRIENT_DENSE_CATEGORIES = [
+    "Fruits and Fruit Juices",
+    "Vegetables and Vegetable Products",
+]
 
-query = st.text_input("Search for a food (e.g. 'apple', 'carrot')")
+# --- APP TITLE ---
+st.title("🥗 Serving Tracker (USDA)")
+
+# --- SEARCH BAR ---
+query = st.text_input("Search for a food (e.g. 'apple', 'pizza')")
 
 if st.button("Search") and query:
     params = {
         "api_key": FDC_API_KEY,
         "query": query,
         "pageSize": 25,
-        "dataType": ["Foundation", "SR Legacy"]
+        "dataType": ["Foundation", "SR Legacy"],
     }
     r = requests.get(SEARCH_URL, params=params)
+
     if r.status_code != 200:
         st.error("API call failed")
     else:
         foods = r.json().get("foods", [])
-        # keep only Fruits & Vegetables
-        filtered = [
-            f for f in foods
-            if f.get("foodCategory") in [
-                "Fruits and Fruit Juices",
-                "Vegetables and Vegetable Products"
-            ]
-        ]
+
+        # Keep only foods that have a category
+        filtered = [f for f in foods if f.get("foodCategory")]
 
         if not filtered:
-            st.warning("No fruits or vegetables found in results.")
+            st.warning("No foods with a category found.")
         else:
-            names = [f"{f['description']} ({f['foodCategory']})" for f in filtered]
-            selected = st.selectbox("Pick a food", names)
-            if selected:
-                chosen = filtered[names.index(selected)]
-                st.write("**Food:**", chosen["description"])
-                st.write("**Category:**", chosen["foodCategory"])
-                st.json(chosen)  # show all USDA fields
+            # Save results in session_state for persistence
+            st.session_state["search_results"] = filtered
+
+# --- RESULTS DROPDOWN ---
+if "search_results" in st.session_state:
+    foods = st.session_state["search_results"]
+    food_names = [f"{f['description']} ({f['foodCategory']})" for f in foods]
+
+    selected = st.selectbox("Pick a food", food_names)
+
+    if selected:
+        chosen = foods[food_names.index(selected)]
+        desc = chosen["description"]
+        cat = chosen["foodCategory"]
+
+        st.write("**USDA Food Found:**", desc)
+        st.write("**Category:**", cat)
+
+        # Nutrient vs Energy Dense classification
+        if cat in NUTRIENT_DENSE_CATEGORIES:
+            st.success("✅ Classified as **Nutrient-Dense Serving**")
+        else:
+            st.warning("⚡ Classified as **Energy-Dense Serving**")
+
+        # Optional: show full JSON for debugging
+        # st.json(chosen)
