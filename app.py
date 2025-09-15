@@ -9,8 +9,8 @@ SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
 # Load FPED locally
 @st.cache_data
 def load_fped():
-    # Download FPED 2017-2018 CSV and put in project folder
-    fped = pd.read_csv("FPED_1718.csv")
+    url = "https://www.ars.usda.gov/ARSUserFiles/80400530/pdf/fped/fped_1718.csv"
+    fped = pd.read_csv(url)
     return fped
 
 fped = load_fped()
