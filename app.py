@@ -58,12 +58,14 @@ if st.button("Search") and search_text:
     r = requests.get(SEARCH_URL, headers=headers, params={"query": search_text})
     if r.status_code != 200:
         st.error("Search failed (Nutritionix). Check API key / rate limits.")
+        st.session_state.search_results = []
     else:
         data = r.json()
-        # prefer 'common' then 'branded' names; keep up to 10
         common = data.get("common", []) or []
         branded = data.get("branded", []) or []
         options = []
+
+        # pull up to 10 names
         for c in common:
             name = c.get("food_name")
             if name and name not in options:
@@ -77,15 +79,11 @@ if st.button("Search") and search_text:
             if len(options) >= 10:
                 break
 
-        if not options:
-            st.warning("No matches found. Try different text.")
-        else:
-            st.session_state.search_results = options
-            # pre-select first
-            st.session_state.selected_food_name = options[0]
-            st.session_state.selected_item = None
+        st.session_state.search_results = options
+        st.session_state.selected_food_name = options[0] if options else None
+        st.session_state.selected_item = None
 
-# show dropdown of results (if any)
+# --- show dropdown if we have results ---
 if st.session_state.search_results:
     sel = st.selectbox(
         "Pick a result to load nutrition for",
@@ -94,20 +92,19 @@ if st.session_state.search_results:
         key="search_results_select"
     )
     st.session_state.selected_food_name = sel
+
     if st.button("Load nutrition for selection"):
-        # fetch nutrition details for that selected food (single item)
         payload = {"query": st.session_state.selected_food_name}
         r2 = requests.post(NUTRITIONIX_URL, headers=headers, json=payload)
-        if r2.status_code != 200:
-            st.error("Nutrition lookup failed. Try again.")
-        else:
+        if r2.status_code == 200:
             results = r2.json().get("foods", [])
-            if not results:
-                st.warning("No nutrition info returned.")
-                st.session_state.selected_item = None
-            else:
-                # store the first parsed result
+            if results:
                 st.session_state.selected_item = results[0]
+            else:
+                st.warning("No nutrition info found for that selection.")
+        else:
+            st.error("Nutrition lookup failed. Try again.")
+
 
 # -----------------------
 # SHOW selected nutrition and add form
