@@ -6,11 +6,11 @@ import pandas as pd
 FDC_API_KEY = "HvgXfQKOj8xIz3vubw8K87mOrankyf22ld4dHnAS"  # <-- replace with your USDA API key
 SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
 
-# Load FPED locally
+# Load FPED from local repo
 @st.cache_data
 def load_fped():
-    url = "https://www.ars.usda.gov/ARSUserFiles/80400530/pdf/fped/fped_1718.csv"
-    fped = pd.read_csv(url)
+    # Adjust path if you put it in a subfolder (e.g. "data/FPED_1718.xls")
+    fped = pd.read_excel("FPED_1718.xls")
     return fped
 
 fped = load_fped()
