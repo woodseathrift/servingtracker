@@ -104,12 +104,9 @@ if st.session_state.selected_item:
     if is_fruitveg:
         base_serving = 50
         serving_type = "Nutrient-dense"
-    elif calories >= 80:
+    else:
         base_serving = 100
         serving_type = "Energy-dense"
-    else:
-        base_serving = 50
-        serving_type = "Nutrient-dense"
 
     # adjust serving qty to target calories
     ratio = base_serving / calories
