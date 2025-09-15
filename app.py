@@ -1,108 +1,202 @@
 import streamlit as st
 import requests
 import datetime
+import re
 
-# --- API SETUP ---
-NUTRITIONIX_APP_ID = "5107911f"
-NUTRITIONIX_APP_KEY = "39b7b779dbafa5fe4ae28af495a3c349"
+# -----------------------
+# API KEYS (secrets fallback)
+# -----------------------
+try:
+    NUTRITIONIX_APP_ID = st.secrets["NUTRITIONIX_APP_ID"]
+    NUTRITIONIX_APP_KEY = st.secrets["NUTRITIONIX_APP_KEY"]
+except Exception:
+    # fallback (replace with your keys or keep these if they are yours)
+    NUTRITIONIX_APP_ID = "5107911f"
+    NUTRITIONIX_APP_KEY = "39b7b779dbafa5fe4ae28af495a3c349"
+
 SEARCH_URL = "https://trackapi.nutritionix.com/v2/search/instant"
 NUTRITIONIX_URL = "https://trackapi.nutritionix.com/v2/natural/nutrients"
 
 headers = {
     "x-app-id": NUTRITIONIX_APP_ID,
     "x-app-key": NUTRITIONIX_APP_KEY,
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
 }
 
-# --- RESET SERVINGS DAILY ---
+# -----------------------
+# helpers
+# -----------------------
+def round_quarter(x):
+    return round(x * 4) / 4
+
+def sanitize_key(s: str) -> str:
+    if not s:
+        return "k"
+    return re.sub(r"\W+", "_", s).strip("_").lower()
+
+# -----------------------
+# session state init (daily reset)
+# -----------------------
 today = datetime.date.today().isoformat()
 if "day" not in st.session_state or st.session_state.day != today:
     st.session_state.day = today
     st.session_state.energy_servings = 0.0
     st.session_state.nutrient_servings = 0.0
+    st.session_state.search_results = []   # list of strings
+    st.session_state.selected_food_name = None   # the chosen display name
+    st.session_state.selected_item = None  # full nutritionix item dict (cached)
 
-st.title("🥗 Food Tracker (Serving Based)")
+st.title("🥗 Serving-based Food Tracker")
 
-# --- SEARCH BOX ---
-food_input = st.text_input("Enter a food:")
+# -----------------------
+# SEARCH UI
+# -----------------------
+st.markdown("### Search foods (Nutritionix)")
+search_text = st.text_input("Type a food name (e.g. 'cheerios', 'banana')")
 
-if food_input:
-    r = requests.get(SEARCH_URL, headers=headers, params={"query": food_input})
-    if r.status_code == 200:
-        results = r.json().get("common", [])[:10]
-        options = [f["food_name"] for f in results]
-        if options:
-            choice = st.selectbox("Select a food:", options)
-            if st.button("Get Nutrition"):
-                data = {"query": choice}
-                response = requests.post(NUTRITIONIX_URL, headers=headers, json=data)
-                if response.status_code == 200:
-                    food_data = response.json()
-                    for item in food_data.get("foods", []):
-                        name = item["food_name"].title()
-                        calories = item["nf_calories"]
-                        serving_qty = item["serving_qty"]
-                        serving_unit = item["serving_unit"]
+if st.button("Search") and search_text:
+    r = requests.get(SEARCH_URL, headers=headers, params={"query": search_text})
+    if r.status_code != 200:
+        st.error("Search failed (Nutritionix). Check API key / rate limits.")
+    else:
+        data = r.json()
+        # prefer 'common' then 'branded' names; keep up to 10
+        common = data.get("common", []) or []
+        branded = data.get("branded", []) or []
+        options = []
+        for c in common:
+            name = c.get("food_name")
+            if name and name not in options:
+                options.append(name)
+            if len(options) >= 10:
+                break
+        for b in branded:
+            name = b.get("food_name")
+            if name and name not in options:
+                options.append(name)
+            if len(options) >= 10:
+                break
 
-                        # --- Get food group safely ---
-                        food_group = ""
-                        tags = item.get("tags", {})
-                        if tags and "food_group" in tags and tags["food_group"]:
-                            food_group = str(tags["food_group"]).lower()
+        if not options:
+            st.warning("No matches found. Try different text.")
+        else:
+            st.session_state.search_results = options
+            # pre-select first
+            st.session_state.selected_food_name = options[0]
+            st.session_state.selected_item = None
 
-                        # --- Determine serving type ---
-                        if "fruit" in food_group or "vegetable" in food_group:
-                            base_serving = 50   # nutrient-dense
-                            serving_type = "Nutrient-dense"
-                        else:
-                            base_serving = 100  # energy-dense
-                            serving_type = "Energy-dense"
+# show dropdown of results (if any)
+if st.session_state.search_results:
+    sel = st.selectbox(
+        "Pick a result to load nutrition for",
+        st.session_state.search_results,
+        index=0,
+        key="search_results_select"
+    )
+    st.session_state.selected_food_name = sel
+    if st.button("Load nutrition for selection"):
+        # fetch nutrition details for that selected food (single item)
+        payload = {"query": st.session_state.selected_food_name}
+        r2 = requests.post(NUTRITIONIX_URL, headers=headers, json=payload)
+        if r2.status_code != 200:
+            st.error("Nutrition lookup failed. Try again.")
+        else:
+            results = r2.json().get("foods", [])
+            if not results:
+                st.warning("No nutrition info returned.")
+                st.session_state.selected_item = None
+            else:
+                # store the first parsed result
+                st.session_state.selected_item = results[0]
 
-                        # --- Scale unit size to match base serving ---
-                        unit_calories = calories / serving_qty
-                        target_qty = base_serving / unit_calories
-                        # round to nearest 0.25
-                        target_qty = round(target_qty * 4) / 4
+# -----------------------
+# SHOW selected nutrition and add form
+# -----------------------
+item = st.session_state.selected_item
+if item:
+    # safe reads with defaults
+    name = item.get("food_name", "Unknown").title()
+    calories = item.get("nf_calories", 0) or 0
+    serving_qty = item.get("serving_qty", 1) or 1
+    serving_unit = item.get("serving_unit", "") or "unit"
 
-                        st.write(f"**{name}**")
-                        st.write(
-                            f"≈ {target_qty} {serving_unit} "
-                            f"= ~{base_serving} kcal ({serving_type})"
-                        )
+    st.markdown(f"## {name}")
+    st.write(f"Nutritionix: {serving_qty} {serving_unit} = {calories:.0f} kcal")
 
-                        # --- FORM to add servings ---
-                        with st.form(key=f"{name}_form"):
-                            servings_choice = st.selectbox(
-                                f"How many servings of {name}?",
-                                [0.25, 0.5, 0.75, 1, 2, 3],
-                                index=3
-                            )
-                            submitted = st.form_submit_button(f"Add {name}")
-                            if submitted:
-                                if serving_type == "Energy-dense":
-                                    st.session_state.energy_servings += servings_choice
-                                else:
-                                    st.session_state.nutrient_servings += servings_choice
-                                st.success(f"Added {servings_choice} {serving_type} serving(s) of {name}")
+    # safe food_group check
+    food_group = ""
+    tags = item.get("tags", {}) or {}
+    if tags and "food_group" in tags and tags["food_group"]:
+        food_group = str(tags["food_group"]).lower()
 
-# --- MANUAL ENTRY ---
-st.sidebar.subheader("➕ Add Servings Manually")
-manual_type = st.sidebar.selectbox(
-    "Serving type:",
-    ["Nutrient-dense", "Energy-dense"]
-)
-manual_qty = st.sidebar.selectbox(
-    "How many servings?",
-    [0.25, 0.5, 0.75, 1, 2, 3, 4],
-    index=3
-)
-if st.sidebar.button("Add Manual Serving"):
+    # classify: only fruits & vegetables => nutrient-dense; everything else => energy-dense
+    if "fruit" in food_group or "vegetable" in food_group:
+        base_serving = 50
+        serving_type = "Nutrient-dense"
+        lower, upper = 40, 60
+    else:
+        base_serving = 100
+        serving_type = "Energy-dense"
+        lower, upper = 80, 120
+
+    # If Nutritionix's serving is already inside the target range, keep it; otherwise rescale
+    in_range = (lower <= calories <= upper)
+    if in_range or calories == 0:
+        adjusted_qty = round_quarter(serving_qty)
+    else:
+        # compute calories per serving_qty unit (guard divide-by-zero)
+        unit_calories = calories / serving_qty if serving_qty != 0 else calories
+        if unit_calories <= 0:
+            adjusted_qty = round_quarter(serving_qty)
+        else:
+            needed_qty = base_serving / unit_calories
+            adjusted_qty = round_quarter(needed_qty)
+
+    st.info(f"Defined 1 {serving_type} serving ≈ **{adjusted_qty} {serving_unit}** (target {lower}-{upper} kcal)")
+
+    # create a stable key for this food's form
+    base_key = sanitize_key(name)
+
+    # form for adding servings (bundles select + submit so rerun is clean)
+    with st.form(key=f"form_{base_key}"):
+        chosen = st.selectbox(
+            "How many servings?",
+            [0.25, 0.5, 0.75, 1, 2],
+            index=3,
+            key=f"select_{base_key}"
+        )
+
+        actual_qty = round_quarter(adjusted_qty * chosen)
+        st.write(f"→ {chosen} serving(s) = **{actual_qty} {serving_unit}**")
+
+        submitted = st.form_submit_button("Add to tally")
+        if submitted:
+            if serving_type == "Energy-dense":
+                st.session_state.energy_servings += chosen
+            else:
+                st.session_state.nutrient_servings += chosen
+            st.success(f"Added {chosen} {serving_type} serving(s) of {name}")
+
+# -----------------------
+# MANUAL ENTRY IN SIDEBAR
+# -----------------------
+st.sidebar.header("➕ Manual add")
+manual_type = st.sidebar.selectbox("Serving type", ["Nutrient-dense", "Energy-dense"])
+manual_qty = st.sidebar.selectbox("Servings", [0.25, 0.5, 0.75, 1, 2, 3], index=3)
+if st.sidebar.button("Add manual"):
     if manual_type == "Energy-dense":
         st.session_state.energy_servings += manual_qty
     else:
         st.session_state.nutrient_servings += manual_qty
+    st.sidebar.success(f"Added {manual_qty} {manual_type} serving(s)")
 
-# --- DISPLAY TALLY ---
-st.sidebar.header("📊 Today's Totals")
-st.sidebar.metric("Energy-dense Servings", round(st.session_state.energy_servings, 2))
-st.sidebar.metric("Nutrient-dense Servings", round(st.session_state.nutrient_servings, 2))
+# -----------------------
+# DISPLAY TALLY (rounded to nearest 0.25)
+# -----------------------
+def display_round_quarter(x):
+    return round_quarter(x)
+
+st.sidebar.markdown("### Today's totals")
+st.sidebar.write(f"Energy-dense servings: **{display_round_quarter(st.session_state.energy_servings)}**")
+st.sidebar.write(f"Nutrient-dense servings: **{display_round_quarter(st.session_state.nutrient_servings)}**")
+
