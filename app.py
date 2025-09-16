@@ -31,12 +31,15 @@ if "nutrient_servings" not in st.session_state:
     st.session_state.nutrient_servings = 0.0
 if "date" not in st.session_state:
     st.session_state.date = datetime.date.today()
+if "selected_foods" not in st.session_state:   # ✅ new: track chosen foods
+    st.session_state.selected_foods = []
 
 # reset daily
 if st.session_state.date != datetime.date.today():
     st.session_state.energy_servings = 0.0
     st.session_state.nutrient_servings = 0.0
     st.session_state.date = datetime.date.today()
+    st.session_state.selected_foods = []  # ✅ reset foods too
 
 # ------------------- Serving Picker -------------------
 COMMON_UNITS = [
@@ -120,33 +123,40 @@ if query:
             f'{row["main_food_description"]} (#{row["food_code"]})': row["food_code"]
             for _, row in matches.iterrows()
         }
-        choice = st.selectbox(
-            "Select a food",
-            list(options.keys()),
-            key=f"food_choice_{hash(tuple(options.values()))}"  # ✅ unique per search
-        )
+        choice = st.selectbox("Select a food", list(options.keys()), key=f"food_choice_{query}")
         if choice:
             code = options[choice]
-            food_row = foods_df[foods_df["food_code"] == code].iloc[0]
-            density, serving_text = serving_for_food(food_row)
+            # ✅ Only add once
+            if code not in [f["code"] for f in st.session_state.selected_foods]:
+                st.session_state.selected_foods.append({
+                    "code": code,
+                    "name": foods_df[foods_df["food_code"] == code].iloc[0]["main_food_description"]
+                })
 
-            color = "#330000" if density == "Energy-dense" else "#003300"
-            st.markdown(
-                f"<div style='background-color:{color}; padding:8px; border-radius:8px;'>"
-                f"<b>{density}</b>: {serving_text}</div>",
-                unsafe_allow_html=True,
-            )
+# ------------------- Selected Foods Section -------------------
+st.subheader("Selected Foods")
 
-            amt = st.selectbox(
-                "Add servings",
-                [0.25, 0.5, 0.75, 1, 2],
-                index=3,
-                key=f"food_amt_{code}"  # ✅ unique per food
-            )
-            if st.button("Add to tally", key=f"add_{code}"):  # ✅ unique per food
-                add_serving(density, amt)
+for food in st.session_state.selected_foods:
+    food_row = foods_df[foods_df["food_code"] == food["code"]].iloc[0]
+    density, serving_text = serving_for_food(food_row)
 
-# Manual tally section
+    color = "#330000" if density == "Energy-dense" else "#003300"
+    st.markdown(
+        f"<div style='background-color:{color}; padding:8px; border-radius:8px;'>"
+        f"<b>{food['name']}</b><br>{density}: {serving_text}</div>",
+        unsafe_allow_html=True,
+    )
+
+    amt = st.selectbox(
+        f"Add servings for {food['name']}",
+        [0.25, 0.5, 0.75, 1, 2],
+        index=3,
+        key=f"amt_{food['code']}"
+    )
+    if st.button("Add to tally", key=f"add_{food['code']}"):
+        add_serving(density, amt)
+
+# ------------------- Manual tally section -------------------
 st.subheader("Quick Add")
 col1, col2 = st.columns(2)
 with col1:
@@ -158,7 +168,7 @@ with col2:
     if st.button("🌱 Add Nutrient 🌱"):
         add_serving("Nutrient-dense", amt)
 
-# Show tally
+# ------------------- Show tally -------------------
 st.subheader("Tally")
 col1, col2 = st.columns(2)
 with col1:
