@@ -41,7 +41,7 @@ if "food_choice" not in st.session_state:
     st.session_state.food_choice = "-- choose a food --"
 if "amt_choice" not in st.session_state:
     st.session_state.amt_choice = 1
-    
+
 # reset daily
 if st.session_state.date != datetime.date.today():
     st.session_state.energy_servings = 0.0
@@ -151,21 +151,19 @@ if query:
 
             if st.button("Add to tally"):
                 add_serving(density, amt)
+                st.session_state.selected_foods.append({
+                    "code": code,
+                    "name": food_row["main_food_description"],
+                    "density": density,
+                    "amt": amt,
+                })
 
-    st.session_state.selected_foods.append({
-        "code": code,
-        "name": food_row["main_food_description"],
-        "density": density,
-        "amt": amt,
-    })
+                # ✅ clear search + reset UI
+                for k in ["food_search", "food_choice", "amt_choice"]:
+                    if k in st.session_state:
+                        del st.session_state[k]
 
-    # ❌ Don't overwrite active widget values directly
-    # ✅ Delete them instead
-    for k in ["food_search", "food_choice", "amt_choice"]:
-        if k in st.session_state:
-            del st.session_state[k]
-
-    st.rerun()
+                st.rerun()
 
 # ------------------- Selected Foods Section -------------------
 st.subheader("Selected Foods")
@@ -187,25 +185,9 @@ for food in st.session_state.selected_foods:
         index=3,
         key=f"amt_{food['code']}"
     )
-    if st.button("Add to tally"):
+    if st.button(f"Add more {food['name']}"):
         add_serving(density, amt)
-
-    # also keep track of the food in session_state
-    st.session_state.selected_foods.append({
-        "code": code,
-        "name": food_row["main_food_description"],
-        "density": density,
-        "amt": amt,
-    })
-
-    # ✅ clear search + reset UI
-    st.session_state.update({
-        "food_search": "",
-        "food_choice": "-- choose a food --",
-        "amt_choice": 1.0
-    })
-
-    st.rerun()
+        st.rerun()
 
 # ------------------- Manual tally section -------------------
 st.subheader("Quick Add")
@@ -234,3 +216,4 @@ with col2:
         f"🌱 Nutrient-dense servings: <b>{st.session_state.nutrient_servings:.2f}</b></div>",
         unsafe_allow_html=True,
     )
+
