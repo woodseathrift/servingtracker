@@ -151,14 +151,21 @@ if query:
 
             if st.button("Add to tally"):
                 add_serving(density, amt)
-                # ✅ clear search + reset UI
-                st.session_state.update({
-                     "food_search": "",
-                    "food_choice": "-- choose a food --",
-                      "amt_choice": 1
-                })
-                
-            st.rerun()
+
+    st.session_state.selected_foods.append({
+        "code": code,
+        "name": food_row["main_food_description"],
+        "density": density,
+        "amt": amt,
+    })
+
+    # ❌ Don't overwrite active widget values directly
+    # ✅ Delete them instead
+    for k in ["food_search", "food_choice", "amt_choice"]:
+        if k in st.session_state:
+            del st.session_state[k]
+
+    st.rerun()
 
 # ------------------- Selected Foods Section -------------------
 st.subheader("Selected Foods")
