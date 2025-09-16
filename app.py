@@ -116,7 +116,7 @@ if query:
             food_row = foods_df[foods_df["food_code"] == code].iloc[0]
             density, serving_text = serving_for_food(food_row)
 
-            color = "#FFCCCC" if density == "Energy-dense" else "#CCFFCC"
+            color = "#330000" if density == "Energy-dense" else "#003300"
             st.markdown(
                 f"<div style='background-color:{color}; padding:8px; border-radius:8px;'>"
                 f"<b>{density}</b>: {serving_text}</div>",
