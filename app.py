@@ -3,6 +3,7 @@ import requests
 import datetime
 import pandas as pd
 
+# --- LOAD FPED DATA ---
 FPED_FILE = "FPED_1718.csv"
 fped_raw = pd.read_csv(FPED_FILE)
 
@@ -54,12 +55,18 @@ fped_meta = {
     "A_DRINKS": "Alcoholic drinks"
 }
 
-# Add labels
+# Add human-readable labels
 fped_long["variable_label"] = fped_long["variable_name"].map(fped_meta)
 
-
-# Dictionary: FOODCODE -> row of serving equivalents
-fped_map = fped.set_index("FOODCODE").to_dict(orient="index")
+# Helper function
+def get_fped_servings(food_code):
+    rows = fped_long[(fped_long["FOODCODE"] == food_code) & (fped_long["amount"] > 0)]
+    servings = []
+    for _, r in rows.iterrows():
+        label = r["variable_label"] or r["variable_name"]
+        val = r["amount"]
+        servings.append(f"{val:.2f} {label}")
+    return servings
 
 # --- CONFIG ---
 FDC_API_KEY = "HvgXfQKOj8xIz3vubw8K87mOrankyf22ld4dHnAS"
@@ -79,7 +86,7 @@ if "day" not in st.session_state or st.session_state.day != today:
     st.session_state.search_results = []
     st.session_state.selected_food = None
 
-st.title("🥗 Food Tracker (USDA)")
+st.title("🥗 Food Tracker (USDA + FPED)")
 
 def round_quarter(x):
     return round(x * 4) / 4
@@ -147,10 +154,6 @@ if st.session_state.selected_food:
     else:
         st.info("No FPED serving equivalents found — defaulting to 100 g.")
         choice = "100 g"
-
-
-    # let user pick portion
-    choice = st.selectbox("Choose a portion size:", servings_available)
 
     # How many portions
     servings = st.selectbox(
