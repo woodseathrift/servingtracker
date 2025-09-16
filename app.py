@@ -7,17 +7,6 @@ FOODS_FILE = "2017-2018 FNDDS At A Glance - Foods and Beverages.csv"
 NUTRIENTS_FILE = "2017-2018 FNDDS At A Glance - FNDDS Nutrient Values.csv"
 PORTIONS_FILE = "2017-2018 FNDDS At A Glance - Portions and Weights.csv"
 
-st.write("Foods file columns:", list(foods_df.columns))
-st.write("Nutrients file columns:", list(nutrients_df.columns))
-st.write("Portions file columns:", list(portions_df.columns))
-
-# --- RESET DAILY SERVINGS ---
-today = datetime.date.today().isoformat()
-if "day" not in st.session_state or st.session_state.day != today:
-    st.session_state.day = today
-    st.session_state.energy_servings = 0.0
-    st.session_state.nutrient_servings = 0.0
-
 # --- LOAD DATA ---
 @st.cache_data
 def load_data():
@@ -32,6 +21,17 @@ foods_df, nutrients_df, portions_df = load_data()
 foods_df.columns = foods_df.columns.str.strip().str.lower().str.replace(" ", "_")
 nutrients_df.columns = nutrients_df.columns.str.strip().str.lower().str.replace(" ", "_")
 portions_df.columns = portions_df.columns.str.strip().str.lower().str.replace(" ", "_")
+
+st.write("Foods file columns:", list(foods_df.columns))
+st.write("Nutrients file columns:", list(nutrients_df.columns))
+st.write("Portions file columns:", list(portions_df.columns))
+
+# --- RESET DAILY SERVINGS ---
+today = datetime.date.today().isoformat()
+if "day" not in st.session_state or st.session_state.day != today:
+    st.session_state.day = today
+    st.session_state.energy_servings = 0.0
+    st.session_state.nutrient_servings = 0.0
 
 # --- APP TITLE ---
 st.title("🥗 Food Tracker (FNDDS 2017–2018)")
