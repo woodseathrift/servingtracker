@@ -31,15 +31,17 @@ if "nutrient_servings" not in st.session_state:
     st.session_state.nutrient_servings = 0.0
 if "date" not in st.session_state:
     st.session_state.date = datetime.date.today()
-if "selected_foods" not in st.session_state:   # ✅ new: track chosen foods
+if "selected_foods" not in st.session_state:
     st.session_state.selected_foods = []
+if "clear_search" not in st.session_state:
+    st.session_state.clear_search = False
 
 # reset daily
 if st.session_state.date != datetime.date.today():
     st.session_state.energy_servings = 0.0
     st.session_state.nutrient_servings = 0.0
     st.session_state.date = datetime.date.today()
-    st.session_state.selected_foods = []  # ✅ reset foods too
+    st.session_state.selected_foods = []
 
 # ------------------- Serving Picker -------------------
 COMMON_UNITS = [
@@ -52,41 +54,34 @@ COMMON_UNITS = [
 ]
 
 def pick_fractional_serving(food_row, target_cal):
-    # get kcal per 100g from nutrients_df
     kcal_row = nutrients_df[nutrients_df["food_code"] == food_row["food_code"]]
     if kcal_row.empty:
         return "No kcal data"
     kcal_per_100g = kcal_row.iloc[0]["energy_kcal"]
     kcal_per_g = kcal_per_100g / 100
 
-    # Filter common unit portions
     portions = []
     for _, row in portions_df[portions_df["food_code"] == food_row["food_code"]].iterrows():
         desc = str(row["portion_description"]).lower()
         if any(u in desc for u in COMMON_UNITS):
             portions.append(row)
     if not portions:
-        # fallback to grams
         grams = round(target_cal / kcal_per_g)
         return f"{grams} g (~{target_cal} kcal)"
 
-    # pick first common unit portion
     base = portions[0]
     grams = base["portion_weight_g"]
     kcal_per_portion = grams * kcal_per_g
 
-    # clean description (remove leading "1 " or "one ")
     desc = str(base["portion_description"]).lower()
     if desc.startswith("1 "):
         desc = desc[2:]
     elif desc.startswith("one "):
         desc = desc[4:]
 
-    # compute fraction of this unit needed
     fraction = target_cal / kcal_per_portion
-    fraction = round(fraction * 4) / 4  # nearest 0.25
+    fraction = round(fraction * 4) / 4
 
-    # pretty print (avoid "1.0")
     if fraction.is_integer():
         fraction_str = str(int(fraction))
     else:
@@ -115,7 +110,14 @@ def add_serving(density_type, amount=1.0):
 # ------------------- UI -------------------
 st.title("🥗 Serving Tracker")
 
-query = st.text_input("Search food", key="search_box")
+# handle clearing safely
+if st.session_state.clear_search:
+    default_value = ""
+    st.session_state.clear_search = False
+else:
+    default_value = st.session_state.get("search_box", "")
+
+query = st.text_input("Search food", value=default_value, key="search_box")
 
 if query:
     matches = foods_df[foods_df["main_food_description"].str.contains(query, case=False, na=False)]
@@ -124,8 +126,7 @@ if query:
             f'{row["main_food_description"]} (#{row["food_code"]})': row["food_code"]
             for _, row in matches.iterrows()
         }
-        # ✅ stable key for selectbox
-        choice = st.selectbox("Select a food", list(options.keys()), key="choice_box")
+        choice = st.selectbox("Select a food", list(options.keys()), key=f"choice_{query}")
         if choice:
             code = options[choice]
             if code not in [f["code"] for f in st.session_state.selected_foods]:
@@ -134,8 +135,7 @@ if query:
                     "code": code,
                     "name": food_row["main_food_description"]
                 })
-                # ✅ clear the search input
-                st.session_state.search_box = ""
+                st.session_state.clear_search = True
                 st.rerun()
 
 # ------------------- Selected Foods Section -------------------
