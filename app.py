@@ -8,8 +8,21 @@ def load_data():
     foods_df = pd.read_csv("2017-2018 FNDDS At A Glance - Foods and Beverages.csv", skiprows=1)
     nutrients_df = pd.read_csv("2017-2018 FNDDS At A Glance - FNDDS Nutrient Values.csv", skiprows=1)
     portions_df = pd.read_csv("2017-2018 FNDDS At A Glance - Portions and Weights.csv", skiprows=1)
-    return df
 
+    # Normalize column names
+    for df in [foods_df, nutrients_df, portions_df]:
+        df.columns = (
+            df.columns.str.strip()
+            .str.lower()
+            .str.replace(" ", "_")
+            .str.replace(r"[()]", "", regex=True)
+        )
+
+    # ✅ Return all three at the end
+    return foods_df, nutrients_df, portions_df
+
+
+# Unpack correctly
 foods_df, nutrients_df, portions_df = load_data()
 
 # ------------------- Initialize State -------------------
