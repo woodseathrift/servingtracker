@@ -52,7 +52,7 @@ COMMON_UNITS = [
 def pick_fractional_serving(food_row, target_cal):
     # Filter common unit portions
     portions = []
-    for _, row in foods[foods["food_code"] == food_row["food_code"]].iterrows():
+    for _, row in portions_df[portions_df["food_code"] == food_row["food_code"]].iterrows():
         desc = str(row["portion_description"]).lower()
         if any(u in desc for u in COMMON_UNITS):
             portions.append(row)
@@ -96,14 +96,15 @@ query = st.text_input("Search food")
 if query:
     matches = foods_df[foods_df["main_food_description"].str.contains(query, case=False, na=False)]
     if not matches.empty:
-        choice = st.selectbox(
-            "Select a food",
-            [f'{row["main_food_description"]} (#{row["food_code"]})'
-             for _, row in matches.iterrows()]
-        )
+        # ✅ Build label → code dictionary
+        options = {
+            f'{row["main_food_description"]} (#{row["food_code"]})': row["food_code"]
+            for _, row in matches.iterrows()
+        }
+        choice = st.selectbox("Select a food", list(options.keys()))
         if choice:
-            code = int(choice.split("#")[-1].strip())
-            food_row = foods[foods["food_code"] == code].iloc[0]
+            code = options[choice]  # ✅ safer than parsing with split
+            food_row = foods_df[foods_df["food_code"] == code].iloc[0]
             density, serving_text = serving_for_food(food_row)
 
             color = "#FFCCCC" if density == "Energy-dense" else "#CCFFCC"
