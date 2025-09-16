@@ -3,7 +3,7 @@ import pandas as pd
 
 # --- FILE PATHS ---
 FOODS_FILE = "2017-2018 FNDDS At A Glance - Foods and Beverages.csv"
-NUTRIENTS_FILE = "2017-2018 FNDDS At A Glance - Nutrient Values.csv"
+NUTRIENTS_FILE = "2017-2018 FNDDS At A Glance - FNDDS Nutrient Values.csv"
 PORTIONS_FILE = "2017-2018 FNDDS At A Glance - Portions and Weights.csv"
 
 # --- LOAD DATA ---
