@@ -1,85 +1,66 @@
 import streamlit as st
-import pandas as pd
+import requests
 import datetime
 
-# --- FILE PATHS ---
-NUTRIENTS_FILE = "2017-2018 FNDDS At A Glance - FNDDS Nutrient Values.csv"
-PORTIONS_FILE = "2017-2018 FNDDS At A Glance - Portions and Weights.csv"
+# --- API SETUP ---
+NUTRITIONIX_APP_ID = "5107911f"
+NUTRITIONIX_APP_KEY = "39b7b779dbafa5fe4ae28af495a3c349"
+NUTRITIONIX_URL = "https://trackapi.nutritionix.com/v2/natural/nutrients"
 
-# --- LOAD DATA ---
-@st.cache_data
-def load_data():
-    nutrients_df = pd.read_csv(NUTRIENTS_FILE, skiprows=1)
-    portions_df = pd.read_csv(PORTIONS_FILE, skiprows=2)
-    return nutrients_df, portions_df
+headers = {
+    "x-app-id": NUTRITIONIX_APP_ID,
+    "x-app-key": NUTRITIONIX_APP_KEY,
+    "Content-Type": "application/json"
+}
 
-nutrients_df, portions_df = load_data()
-
-# Normalize column names
-nutrients_df.columns = nutrients_df.columns.str.strip().str.lower().str.replace(" ", "_")
-portions_df.columns = portions_df.columns.str.strip().str.lower().str.replace(" ", "_")
-
-# --- RESET DAILY SERVINGS ---
+# --- RESET SERVINGS DAILY ---
 today = datetime.date.today().isoformat()
 if "day" not in st.session_state or st.session_state.day != today:
     st.session_state.day = today
     st.session_state.energy_servings = 0.0
     st.session_state.nutrient_servings = 0.0
 
-# --- APP TITLE ---
-st.title("🥗 Food Tracker (FNDDS 2017–2018)")
+st.title("🥗 Food Tracker (Serving Based)")
 
-# --- SEARCH ---
-query = st.text_input("Search for a food:")
+# --- USER INPUT ---
+food_input = st.text_input("Enter a food:")
+if st.button("Search") and food_input:
+    data = {"query": food_input}
+    response = requests.post(NUTRITIONIX_URL, headers=headers, json=data)
+    if response.status_code == 200:
+        food_data = response.json()
+        for item in food_data.get("foods", []):
+            name = item["food_name"].title()
+            calories = item["nf_calories"]
+            serving_qty = item["serving_qty"]
+            serving_unit = item["serving_unit"]
 
-if query:
-    if "main_food_description" not in nutrients_df.columns:
-        st.error("Could not find 'main_food_description' in Nutrients file. Check headers.")
-    else:
-        matches = nutrients_df[nutrients_df["main_food_description"].str.contains(query, case=False, na=False)]
-        if matches.empty:
-            st.warning("No matches found.")
-        else:
-            options = [f"{row['main_food_description']} (#{row['food_code']})" for _, row in matches.iterrows()]
-            choice = st.selectbox("Select a food:", options)
+            st.write(f"**{name}**")
+            st.write(f"1 {serving_qty} {serving_unit} = {calories:.0f} kcal")
 
-            if choice:
-                code = int(choice.split("#")[-1].strip())
-                food_row = matches[matches["food_code"] == code].iloc[0]
+            # --- CALCULATE SERVINGS ---
+            if calories >= 80:
+                base_serving = 100
+                serving_type = "Energy-dense"
+            else:
+                base_serving = 50
+                serving_type = "Nutrient-dense"
 
-                st.subheader(food_row["main_food_description"])
-                st.write(f"Category: {food_row.get('wweia_category_description', 'Unknown')}")
+            servings = calories / base_serving
 
-                # --- CALORIES ---
-                kcal = food_row.get("energy_(kcal)", None)
-                if pd.notnull(kcal):
-                    st.write(f"~{kcal:.0f} kcal per 100 g")
+            choice = st.selectbox(
+                f"How many servings of {name}?",
+                [0.25, 0.5, 1, 2],
+                key=name
+            )
+
+            if st.button(f"Add {name}"):
+                if serving_type == "Energy-dense":
+                    st.session_state.energy_servings += servings * choice
                 else:
-                    st.write("No kcal data available.")
+                    st.session_state.nutrient_servings += servings * choice
 
-                # --- PORTION SELECTION ---
-                portions = portions_df[portions_df["food_code"] == code]
-                if not portions.empty:
-                    portion_options = [
-                        f"{row['portion_description']} ({row['portion_weight_(g)']} g)"
-                        for _, row in portions.iterrows()
-                    ]
-                    portion_choice = st.selectbox("Choose a portion size:", portion_options)
-                    grams = None
-                    if portion_choice:
-                        grams = float(portion_choice.split("(")[-1].replace("g)", "").strip())
-                        st.write(f"You selected: {portion_choice} → {grams} g")
-
-                    # --- CLASSIFY SERVING TYPE ---
-                    cat = food_row.get("wweia_category_description", "")
-                    if isinstance(cat, str) and any(word in cat.lower() for word in ["fruit", "vegetable"]):
-                        serving_type = "Nutrient-dense"
-                        base_serving = 50
-                    else:
-                        serving_type = "Energy-dense"
-                        base_serving = 100
-
-                    if kcal and grams:
-                        kcal_per_g = kcal / 100
-                        kcal_in_portion = grams * kcal_per_g
-                        factor = base_serving / kcal_in
+# --- DISPLAY TALLY ---
+st.sidebar.header("Today's Totals")
+st.sidebar.metric("Energy-dense Servings", round(st.session_state.energy_servings, 2))
+st.sidebar.metric("Nutrient-dense Servings", round(st.session_state.nutrient_servings, 2))
