@@ -123,7 +123,7 @@ if query:
         choice = st.selectbox(
             "Select a food",
             list(options.keys()),
-            key=f"food_choice_{hash(tuple(options.values()))}"
+            key=f"food_choice_{hash(tuple(options.values()))}"  # ✅ unique per search
         )
         if choice:
             code = options[choice]
@@ -137,8 +137,13 @@ if query:
                 unsafe_allow_html=True,
             )
 
-            amt = st.selectbox("Add servings", [0.25, 0.5, 0.75, 1, 2], index=3, key="food_amt")
-            if st.button("Add to tally"):
+            amt = st.selectbox(
+                "Add servings",
+                [0.25, 0.5, 0.75, 1, 2],
+                index=3,
+                key=f"food_amt_{code}"  # ✅ unique per food
+            )
+            if st.button("Add to tally", key=f"add_{code}"):  # ✅ unique per food
                 add_serving(density, amt)
 
 # Manual tally section
