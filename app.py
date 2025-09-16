@@ -145,12 +145,12 @@ col1, col2 = st.columns(2)
 with col1:
     st.markdown(
         f"<div style='background-color:#FF6666; color:black; padding:10px; border-radius:8px;'>"
-        f"Energy-dense: <b>{st.session_state.energy_servings:.2f}</b></div>",
+        f"⚡ Energy-dense: <b>{st.session_state.energy_servings:.2f}</b></div>",
         unsafe_allow_html=True,
     )
 with col2:
     st.markdown(
         f"<div style='background-color:#66FF66; color:black; padding:10px; border-radius:8px;'>"
-        f"Nutrient-dense: <b>{st.session_state.nutrient_servings:.2f}</b></div>",
+        f"🌱 Nutrient-dense: <b>{st.session_state.nutrient_servings:.2f}</b></div>",
         unsafe_allow_html=True,
     )
