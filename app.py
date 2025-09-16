@@ -28,7 +28,7 @@ def load_data():
 foods_df, nutrients_df, portions_df = load_data()
 
 # --- CLASSIFICATION ---
-nutrient_dense_prefixes = {"61", "63", "72", "73", "74", "75", "78"}
+nutrient_dense_prefixes = {"61", "63", "67", "72", "73", "74", "75", "76", "78"}
 
 def classify_food(code: int) -> str:
     prefix = str(code)[:2]
@@ -37,6 +37,9 @@ def classify_food(code: int) -> str:
 foods_df["density_category"] = foods_df["food_code"].apply(classify_food)
 
 # --- SERVING PICKER ---
+COMMON_UNITS = ["cup", "tablespoon", "tbsp", "teaspoon", "tsp",
+                "slice", "piece", "serving", "packet", "bar", "stick", "bottle", "can"]
+
 def pick_serving(portions, kcal_per_100g, density_type):
     if pd.isna(kcal_per_100g) or kcal_per_100g == 0:
         return None, None
@@ -52,9 +55,12 @@ def pick_serving(portions, kcal_per_100g, density_type):
     for _, row in portions.iterrows():
         grams = row["portion_weight_g"]
         kcal = (grams / 100) * kcal_per_100g
+        desc = str(row["portion_description"]).lower()
 
         if abs(kcal - target_kcal) <= tol:
-            desc = str(row["portion_description"])
+            # Prefer common units
+            is_common = any(unit in desc for unit in COMMON_UNITS)
+
             match = re.match(r"(\d+(\.\d+)?)\s+(.*)", desc)
             if match:
                 qty = float(match.group(1))
@@ -63,10 +69,13 @@ def pick_serving(portions, kcal_per_100g, density_type):
                 desc = f"{qty_rounded} {unit}"
 
             diff = abs(kcal - target_kcal)
-            if diff < best_diff:
+
+            # Strongly prefer common units over grams
+            if best_serving is None or (is_common and not any(u in best_serving[0].lower() for u in ["g", "gram", "oz"])) or diff < best_diff:
                 best_diff = diff
                 best_serving = (desc, kcal)
 
+    # Fallback: grams only if nothing else worked
     if not best_serving:
         grams = (target_kcal / kcal_per_100g) * 100
         desc = f"{grams:.0f} g"
@@ -79,30 +88,34 @@ today = datetime.date.today().isoformat()
 
 if "tally_date" not in st.session_state or st.session_state.tally_date != today:
     st.session_state.tally_date = today
-    st.session_state.energy_servings = 0
-    st.session_state.nutrient_servings = 0
+    st.session_state.energy_servings = 0.0
+    st.session_state.nutrient_servings = 0.0
 
-def add_serving(density_type):
+def add_serving(density_type, amount=1.0):
     if density_type == "Energy-dense":
-        st.session_state.energy_servings += 1
+        st.session_state.energy_servings += amount
     else:
-        st.session_state.nutrient_servings += 1
+        st.session_state.nutrient_servings += amount
 
 # --- UI ---
-st.title("🥗 Food Tracker (FNDDS 2017–2018)")
-
-# Show tally
 st.markdown("### 📊 Daily Tally")
-st.write(f"**Energy-dense servings:** {st.session_state.energy_servings}")
-st.write(f"**Nutrient-dense servings:** {st.session_state.nutrient_servings}")
+st.write(f"**Energy-dense servings:** {st.session_state.energy_servings:.2f}")
+st.write(f"**Nutrient-dense servings:** {st.session_state.nutrient_servings:.2f}")
 
+# Manual add buttons
 col1, col2 = st.columns(2)
 with col1:
-    if st.button("➕ Add Energy-dense Serving"):
-        add_serving("Energy-dense")
+    st.write("➕ Energy-dense")
+    for amt in [0.25, 0.5, 0.75, 1.0]:
+        if st.button(f"Add {amt}"):
+            add_serving("Energy-dense", amt)
+
 with col2:
-    if st.button("➕ Add Nutrient-dense Serving"):
-        add_serving("Nutrient-dense")
+    st.write("➕ Nutrient-dense")
+    for amt in [0.25, 0.5, 0.75, 1.0]:
+        if st.button(f"Add {amt}"):
+            add_serving("Nutrient-dense", amt)
+
 
 st.markdown("---")
 
@@ -158,8 +171,13 @@ if query:
                 if serving:
                     desc, kcal_val = serving
                     st.markdown(f"**Suggested serving:** {desc} (~{kcal_val:.0f} kcal)")
-                    if st.button("✅ Add this serving to tally"):
-                        add_serving(food_row["density_category"])
+
+                    st.write("Add to tally:")
+                    cols = st.columns(4)
+                    for i, amt in enumerate([0.25, 0.5, 0.75, 1.0]):
+                        if cols[i].button(f"+{amt} serving", key=f"{code}_{amt}"):
+                            add_serving(food_row["density_category"], amt)
+
             elif kcal:
                 target = 50 if food_row["density_category"] == "Nutrient-dense" else 100
                 grams = (target / kcal) * 100
