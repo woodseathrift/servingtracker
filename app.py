@@ -49,13 +49,52 @@ def add_serving(density_type, amount=1.0):
     else:
         st.session_state.nutrient_servings += amount
 
+# --- SERVING PICKER ---
+COMMON_UNITS = ["cup", "tablespoon", "tbsp", "teaspoon", "tsp",
+                "slice", "piece", "serving", "packet", "bar", "stick", "bottle", "can"]
+
+def pick_serving(portions, kcal_per_100g, density_type):
+    """Return (desc, kcal) of best serving near 50 or 100 kcal"""
+    if pd.isna(kcal_per_100g) or kcal_per_100g == 0:
+        return None
+
+    if density_type == "Nutrient-dense":
+        target_kcal, tol = 50, 10
+    else:
+        target_kcal, tol = 100, 20
+
+    best_serving = None
+    best_diff = float("inf")
+
+    for _, row in portions.iterrows():
+        grams = row["portion_weight_g"]
+        kcal = (grams / 100) * kcal_per_100g
+        desc = str(row["portion_description"]).lower()
+
+        if abs(kcal - target_kcal) <= tol:
+            is_common = any(unit in desc for unit in COMMON_UNITS)
+            diff = abs(kcal - target_kcal)
+
+            if is_common and diff < best_diff:
+                best_serving = (row["portion_description"], kcal, grams)
+                best_diff = diff
+            elif not best_serving:
+                best_serving = (row["portion_description"], kcal, grams)
+
+    # Fallback: grams only
+    if not best_serving:
+        grams = (target_kcal / kcal_per_100g) * 100
+        best_serving = (f"{grams:.0f} g", target_kcal, grams)
+
+    return best_serving
+
 # --- UI HEADER ---
 st.markdown("### 📊 Daily Tally")
 
 # Color-coded pill style
 st.markdown(
     f"""
-    <div style="display:flex; gap:10px; margin-bottom:10px;">
+    <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
       <div style="background-color:#FFB347; padding:5px 10px; border-radius:12px;">
         <span style="color:black; font-weight:bold;">Energy-dense: {st.session_state.energy_servings:.2f}</span>
       </div>
@@ -67,19 +106,17 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Manual add buttons
+# Manual add dropdowns
 col1, col2 = st.columns(2)
 with col1:
-    st.write("➕ Energy")
-    for amt in [0.25, 0.5, 0.75, 1.0]:
-        if st.button(f"Add {amt}", key=f"manual_energy_{amt}"):
-            add_serving("Energy-dense", amt)
+    amt = st.selectbox("Energy increment", [0.25, 0.5, 0.75, 1.0], key="energy_inc")
+    if st.button("Add Energy", key="energy_btn"):
+        add_serving("Energy-dense", amt)
 
 with col2:
-    st.write("➕ Nutrient")
-    for amt in [0.25, 0.5, 0.75, 1.0]:
-        if st.button(f"Add {amt}", key=f"manual_nutrient_{amt}"):
-            add_serving("Nutrient-dense", amt)
+    amt = st.selectbox("Nutrient increment", [0.25, 0.5, 0.75, 1.0], key="nutrient_inc")
+    if st.button("Add Nutrient", key="nutrient_btn"):
+        add_serving("Nutrient-dense", amt)
 
 st.markdown("---")
 
@@ -129,31 +166,17 @@ if query:
             # Portions
             portions = portions_df[portions_df["food_code"] == code]
             if kcal and not portions.empty:
-                # Build structured options
-                portion_options = []
-                for _, row in portions.iterrows():
-                    grams_val = row["portion_weight_g"]
-                    kcal_val = (grams_val / 100) * kcal
-                    label = f"{row['portion_description']} ({grams_val:.0f} g, ~{kcal_val:.0f} kcal)"
-                    portion_options.append((label, grams_val, kcal_val))
+                serving = pick_serving(portions, kcal, category)
+                if serving:
+                    desc, kcal_val, grams = serving
+                    st.markdown(f"**Suggested serving:** {desc} (~{kcal_val:.0f} kcal, {grams:.0f} g)")
 
-                labels = [p[0] for p in portion_options]
-                portion_choice = st.selectbox("Choose portion:", labels)
-
-                if portion_choice:
-                    grams, kcal_val = [
-                        (g, k) for (lbl, g, k) in portion_options if lbl == portion_choice
-                    ][0]
-
-                    # Quick serving add buttons
-                    cols = st.columns(4)
-                    for i, amt in enumerate([0.25, 0.5, 0.75, 1.0]):
-                        color = "#FF8C00" if category == "Energy-dense" else "#228B22"
-                        if cols[i].button(f"+{amt}", key=f"{code}_{category}_{amt}"):
-                            add_serving(category, amt)
-                        cols[i].markdown(
-                            f"<div style='color:{color}; font-size:12px;'>{amt}x</div>",
-                            unsafe_allow_html=True,
-                        )
+                    amt = st.selectbox(
+                        "Add to tally:",
+                        [0.25, 0.5, 0.75, 1.0],
+                        key=f"{code}_{category}_inc",
+                    )
+                    if st.button("Add Serving", key=f"{code}_{category}_btn"):
+                        add_serving(category, amt)
             else:
                 st.info("No portion data available for this food.")
