@@ -28,7 +28,7 @@ def load_data():
 foods_df, nutrients_df, portions_df = load_data()
 
 # --- CLASSIFICATION ---
-nutrient_dense_prefixes = {"61", "63", "72", "73", "74", "75", "78"}
+nutrient_dense_prefixes = {"61", "63", "67", "72", "73", "74", "75", "76", "78"}
 
 def classify_food(code: int) -> str:
     prefix = str(code)[:2]
@@ -104,7 +104,7 @@ col1, col2 = st.columns(2)
 with col1:
     st.markdown(
         f"<div style='background-color:#ffcccc; padding:8px; border-radius:8px; text-align:center;'>"
-        f"<b>Energy-dense:</b><br><span style='font-size:20px; color:black;'>{st.session_state.energy_servings:.2f}</span>"
+        f"<span style='font-size:20px; color:black;'><b>Energy-dense:</b><br>{st.session_state.energy_servings:.2f}</span>"
         "</div>",
         unsafe_allow_html=True,
     )
@@ -115,7 +115,7 @@ with col1:
 with col2:
     st.markdown(
         f"<div style='background-color:#ccffcc; padding:8px; border-radius:8px; text-align:center;'>"
-        f"<b>Nutrient-dense:</b><br><span style='font-size:20px; color:black;'>{st.session_state.nutrient_servings:.2f}</span>"
+        f"<span style='font-size:20px; color:black;'><b>Nutrient-dense:</b><br>{st.session_state.nutrient_servings:.2f}</span>"
         "</div>",
         unsafe_allow_html=True,
     )
