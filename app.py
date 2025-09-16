@@ -84,10 +84,13 @@ def pick_fractional_serving(food_row, target_cal):
     fraction = round(fraction * 4) / 4  # nearest 0.25
 
     # pretty print (avoid "1.0")
-    fraction_str = str(int(fraction)) 
-    if fraction.is_integer() and fraction > 1 and desc.endswith("s") is False:
+    if fraction.is_integer():
+        fraction_str = str(int(fraction))
+    else:
+        fraction_str = str(fraction)
+
+    if fraction.is_integer() and fraction > 1 and not desc.endswith("s"):
         desc += "s"
-    else str(fraction)
 
     approx_cal = round(fraction * kcal_per_portion)
     return f"{fraction_str} {desc} (~{approx_cal} kcal)"
