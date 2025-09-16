@@ -152,11 +152,12 @@ if query:
             if st.button("Add to tally"):
                 add_serving(density, amt)
                 # ✅ clear search + reset UI
-                    st.session_state.update({
-                        "food_search": "",
-                        "food_choice": "-- choose a food --",
-                        "amt_choice": 1
-                    })
+                st.session_state.update({
+                     "food_search": "",
+                    "food_choice": "-- choose a food --",
+                      "amt_choice": 1
+                })
+                
             st.rerun()
 
 # ------------------- Selected Foods Section -------------------
