@@ -4,8 +4,10 @@ import datetime
 
 # ------------------- Load Food Data -------------------
 @st.cache_data
-def load_food_data():
-    df = pd.read_csv("fndds_food_portions.csv")  # update path as needed
+def load_data():
+    foods_df = pd.read_csv("2017-2018 FNDDS At A Glance - Foods and Beverages.csv", skiprows=1)
+    nutrients_df = pd.read_csv("2017-2018 FNDDS At A Glance - FNDDS Nutrient Values.csv", skiprows=1)
+    portions_df = pd.read_csv("2017-2018 FNDDS At A Glance - Portions and Weights.csv", skiprows=1)
     return df
 
 foods = load_food_data()
