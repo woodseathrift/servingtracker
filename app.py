@@ -9,7 +9,7 @@ NUTRITIONIX_URL = "https://trackapi.nutritionix.com/v2/natural/nutrients"
 
 headers = {
     "x-app-id": NUTRITIONIX_APP_ID,
-    "x-app-key": NUTRITIONIX_APP_KEY,
+    "x-app-key": NUTRITIONIX_APP_KEY,  # fixed here
     "Content-Type": "application/json"
 }
 
