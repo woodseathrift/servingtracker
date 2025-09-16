@@ -123,7 +123,7 @@ if query:
         choice = st.selectbox(
             "Select a food",
             list(options.keys()),
-            key=f"food_choice_{query}"  # 🔑 force refresh when query changes
+            key=f"food_choice_{hash(tuple(options.values()))}"
         )
         if choice:
             code = options[choice]
