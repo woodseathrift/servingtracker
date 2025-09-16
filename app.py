@@ -181,7 +181,7 @@ for food in st.session_state.selected_foods:
         key=f"amt_{food['code']}"
     )
     if st.button("Add to tally"):
-    add_serving(density, amt)
+        add_serving(density, amt)
 
     # also keep track of the food in session_state
     st.session_state.selected_foods.append({
