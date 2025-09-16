@@ -7,6 +7,10 @@ FOODS_FILE = "2017-2018 FNDDS At A Glance - Foods and Beverages.csv"
 NUTRIENTS_FILE = "2017-2018 FNDDS At A Glance - FNDDS Nutrient Values.csv"
 PORTIONS_FILE = "2017-2018 FNDDS At A Glance - Portions and Weights.csv"
 
+st.write("Foods file columns:", list(foods_df.columns))
+st.write("Nutrients file columns:", list(nutrients_df.columns))
+st.write("Portions file columns:", list(portions_df.columns))
+
 # --- RESET DAILY SERVINGS ---
 today = datetime.date.today().isoformat()
 if "day" not in st.session_state or st.session_state.day != today:
