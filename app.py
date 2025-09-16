@@ -165,29 +165,7 @@ if query:
 
                 st.rerun()
 
-# ------------------- Selected Foods Section -------------------
-st.subheader("Selected Foods")
 
-for food in st.session_state.selected_foods:
-    food_row = foods_df[foods_df["food_code"] == food["code"]].iloc[0]
-    density, serving_text = serving_for_food(food_row)
-
-    color = "#330000" if density == "Energy-dense" else "#003300"
-    st.markdown(
-        f"<div style='background-color:{color}; padding:8px; border-radius:8px;'>"
-        f"<b>{food['name']}</b><br>{density}: {serving_text}</div>",
-        unsafe_allow_html=True,
-    )
-
-    amt = st.selectbox(
-        f"Add servings for {food['name']}",
-        [0.25, 0.5, 0.75, 1, 2],
-        index=3,
-        key=f"amt_{food['code']}"
-    )
-    if st.button(f"Add more {food['name']}"):
-        add_serving(density, amt)
-        st.rerun()
 
 # ------------------- Manual tally section -------------------
 st.subheader("Quick Add")
