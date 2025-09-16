@@ -3,9 +3,60 @@ import requests
 import datetime
 import pandas as pd
 
-# --- LOAD FPED SERVING DATA ---
 FPED_FILE = "FPED_1718.csv"
-fped = pd.read_csv(FPED_FILE)
+fped_raw = pd.read_csv(FPED_FILE)
+
+# Melt to long format
+fped_long = fped_raw.melt(
+    id_vars=["FOODCODE", "DESCRIPTION"],
+    var_name="variable_name",
+    value_name="amount"
+)
+
+# Full mapping (variable_name → description + units)
+fped_meta = {
+    "F_TOTAL": "Total fruits (cup eq.)",
+    "F_CITMLB": "Citrus, melons & berries (cup eq.)",
+    "F_OTHER": "Other fruits (cup eq.)",
+    "F_JUICE": "Fruit juice (cup eq.)",
+    "V_TOTAL": "Total vegetables (cup eq.)",
+    "V_DRKGR": "Dark green vegetables (cup eq.)",
+    "V_REDOR_TOTAL": "Red & orange vegetables (cup eq.)",
+    "V_REDOR_TOMATO": "Tomatoes & tomato products (cup eq.)",
+    "V_REDOR_OTHER": "Other red & orange vegetables (cup eq.)",
+    "V_STARCHY_TOTAL": "Starchy vegetables (cup eq.)",
+    "V_STARCHY_POTATO": "White potatoes (cup eq.)",
+    "V_STARCHY_OTHER": "Other starchy vegetables (cup eq.)",
+    "V_OTHER": "Other vegetables (cup eq.)",
+    "V_LEGUMES": "Legumes as vegetables (cup eq.)",
+    "G_TOTAL": "Total grains (oz. eq.)",
+    "G_WHOLE": "Whole grains (oz. eq.)",
+    "G_REFINED": "Refined grains (oz. eq.)",
+    "PF_TOTAL": "Total protein foods (oz. eq.)",
+    "PF_MPS_TOTAL": "Meat, poultry, seafood & cured meats (oz. eq.)",
+    "PF_MEAT": "Meat (beef, pork, lamb, game) (oz. eq.)",
+    "PF_CUREDMEAT": "Cured/luncheon meat (oz. eq.)",
+    "PF_ORGAN": "Organ meats (oz. eq.)",
+    "PF_POULT": "Poultry (oz. eq.)",
+    "PF_SEAFD_HI": "Seafood high in n-3 (oz. eq.)",
+    "PF_SEAFD_LOW": "Seafood low in n-3 (oz. eq.)",
+    "PF_EGGS": "Eggs & substitutes (oz. eq.)",
+    "PF_SOY": "Soy products (oz. eq.)",
+    "PF_NUTSDS": "Nuts & seeds (oz. eq.)",
+    "PF_LEGUMES": "Legumes as protein foods (oz. eq.)",
+    "D_TOTAL": "Total dairy (cup eq.)",
+    "D_MILK": "Milk & fortified soy milk (cup eq.)",
+    "D_YOGURT": "Yogurt (cup eq.)",
+    "D_CHEESE": "Cheese (cup eq.)",
+    "OILS": "Oils (g)",
+    "SOLID_FATS": "Solid fats (g)",
+    "ADD_SUGARS": "Added sugars (tsp. eq.)",
+    "A_DRINKS": "Alcoholic drinks"
+}
+
+# Add labels
+fped_long["variable_label"] = fped_long["variable_name"].map(fped_meta)
+
 
 # Dictionary: FOODCODE -> row of serving equivalents
 fped_map = fped.set_index("FOODCODE").to_dict(orient="index")
@@ -86,16 +137,17 @@ if st.session_state.selected_food:
 
     # --- FPED match ---
     food_code = food.get("foodCode")
-    servings_available = []
-    if food_code in fped_map:
-        row = fped_map[food_code]
-        for col, val in row.items():
-            if isinstance(val, (int, float)) and val > 0:
-                unit = fped.columns[fped.columns.get_loc(col)+2]  # use variable_description column
-                servings_available.append(f"{val} {row['variable_description']}") 
+    if food_code:
+        fped_servings = get_fped_servings(food_code)
+    else:
+        fped_servings = []
+
+    if fped_servings:
+        choice = st.selectbox("Choose a portion size:", fped_servings)
     else:
         st.info("No FPED serving equivalents found — defaulting to 100 g.")
-        servings_available.append("100 g")
+        choice = "100 g"
+
 
     # let user pick portion
     choice = st.selectbox("Choose a portion size:", servings_available)
