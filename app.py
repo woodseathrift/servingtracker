@@ -110,16 +110,9 @@ def add_serving(density_type, amount=1.0):
 # ------------------- UI -------------------
 st.title("🥗 Serving Tracker")
 
-# handle clearing safely
-if st.session_state.clear_search:
-    default_value = ""
-    st.session_state.clear_search = False
-else:
-    default_value = st.session_state.get("search_box", "")
+# single search box
+query = st.text_input("Search food", key="search_box")
 
-query = st.text_input("Search food", value=default_value, key="search_box")
-
-query = st.text_input("Search food")  # ❌ removed key="search_box"
 if query:
     matches = foods_df[foods_df["main_food_description"].str.contains(query, case=False, na=False)]
     if not matches.empty:
@@ -141,7 +134,8 @@ if query:
                     "code": code,
                     "name": food_row["main_food_description"]
                 })
-                st.rerun()  # ✅ just rerun, don’t overwrite search box
+                st.rerun()  # ✅ just rerun, no second search box
+
 
 # ------------------- Selected Foods Section -------------------
 st.subheader("Selected Foods")
