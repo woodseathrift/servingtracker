@@ -168,26 +168,44 @@ if query or search_clicked:
             density, serving_text, base_grams, base_kcal = serving_for_food(food_row)
             color = "#330000" if density == "Energy-dense" else "#003300"
 
-            # Apply user amount choice
-            amt = st.selectbox(
-                "Add servings",
-                [0.25, 0.5, 0.75, 1, 2],
-                index=3,
-                key="amt_choice"
-            )
-            total_grams = round(base_grams * amt)
-            total_kcal = round(base_kcal * amt)
+    # Apply user amount choice
+    amt = st.selectbox(
+        "Add servings",
+        [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+        index=3,
+        key="amt_choice"
+    )
 
-            if amt == 1:
-                display_serving = serving_text
-            else:
-                display_serving = f"{amt} × {serving_text} → (≈{total_grams} g, ~{total_kcal} kcal)"
+    total_grams = round(base_grams * amt)
+    total_kcal = round(base_kcal * amt)
 
-            st.markdown(
-                f"<div style='background-color:{color}; padding:8px; border-radius:8px;'>"
-                f"<b>{food_row['main_food_description']}</b><br>{density}: {display_serving}</div>",
-                unsafe_allow_html=True,
-            )
+    # Rebuild adjusted serving text with pluralization
+    unit_desc = serving_text.split("(", 1)[0].strip()  # e.g. "1 package"
+    if " " in unit_desc:
+        base_num, unit = unit_desc.split(" ", 1)
+    else:
+        base_num, unit = "1", unit_desc
+
+    if amt.is_integer():
+        amt_str = str(int(amt))
+    else:
+        amt_str = str(amt)
+
+    if amt == 1:
+        display_serving = serving_text
+    else:
+        # pluralize if needed
+        unit_adj = unit
+        if amt > 1 and not unit.endswith("s"):
+            unit_adj += "s"
+        display_serving = f"{amt_str} {unit_adj} (≈{total_grams} g, ~{total_kcal} kcal)"
+
+    st.markdown(
+        f"<div style='background-color:{color}; padding:8px; border-radius:8px;'>"
+        f"<b>{food_row['main_food_description']}</b><br>{density}: {display_serving}</div>",
+        unsafe_allow_html=True,
+    )
+
 
             if st.button("Add to tally"):
                 add_serving(density, amt)
@@ -210,11 +228,11 @@ if query or search_clicked:
 st.subheader("Quick Add")
 col1, col2 = st.columns(2)
 with col1:
-    amt = st.selectbox("Serving increment", [0.25, 0.5, 0.75, 1, 2], index=3, key="energy_inc")
+    amt = st.selectbox("Serving increment", [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], index=3, key="energy_inc")
     if st.button("⚡ Add Energy ⚡"):
         add_serving("Energy-dense", amt)
 with col2:
-    amt = st.selectbox("Serving increment", [0.25, 0.5, 0.75, 1, 2], index=3, key="nutrient_inc")
+    amt = st.selectbox("Serving increment", [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], index=3, key="nutrient_inc")
     if st.button("🌱 Add Nutrient 🌱"):
         add_serving("Nutrient-dense", amt)
 
