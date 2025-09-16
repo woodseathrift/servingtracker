@@ -33,11 +33,12 @@ if query:
     if matches.empty:
         st.warning("No matches found.")
     else:
-        options = [f"{row['main_food_description']} (#{row['food_code']})" for _, row in matches.iterrows()]
-        choice = st.selectbox("Select a food:", options)
+        options = {f"{row['main_food_description']} (#{int(row['food_code'])})": int(row['food_code'])
+            for _, row in matches.iterrows()}
+        choice = st.selectbox("Select a food:", list(options.keys()))
 
         if choice:
-            code = int(choice.split("#")[-1].strip())
+            code = options[choice]
             food_row = matches[matches["food_code"] == code].iloc[0]
 
             st.subheader(food_row["main_food_description"])
