@@ -35,7 +35,13 @@ if "selected_foods" not in st.session_state:
     st.session_state.selected_foods = []
 if "clear_search" not in st.session_state:
     st.session_state.clear_search = False
-
+if "food_search" not in st.session_state:
+    st.session_state.food_search = ""
+if "food_choice" not in st.session_state:
+    st.session_state.food_choice = "-- choose a food --"
+if "amt_choice" not in st.session_state:
+    st.session_state.amt_choice = 1
+    
 # reset daily
 if st.session_state.date != datetime.date.today():
     st.session_state.energy_servings = 0.0
