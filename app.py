@@ -28,13 +28,60 @@ def load_data():
 foods_df, nutrients_df, portions_df = load_data()
 
 # --- CLASSIFICATION ---
-nutrient_dense_prefixes = {"61", "63", "67", "72", "73", "74", "75", "76", "78"}
+nutrient_dense_prefixes = {"61", "63", "72", "73", "74", "75", "78"}
 
 def classify_food(code: int) -> str:
     prefix = str(code)[:2]
     return "Nutrient-dense" if prefix in nutrient_dense_prefixes else "Energy-dense"
 
 foods_df["density_category"] = foods_df["food_code"].apply(classify_food)
+
+# --- COMMON UNITS ---
+COMMON_UNITS = [
+    "cup", "tablespoon", "tbsp", "teaspoon", "tsp",
+    "slice", "piece", "serving", "packet", "bar",
+    "stick", "bottle", "can"
+]
+
+# --- SERVING PICKER ---
+def pick_serving(portions, kcal_per_100g, density_type):
+    """Pick serving closest to ~50 or ~100 kcal, preferring common units."""
+    if pd.isna(kcal_per_100g) or kcal_per_100g == 0:
+        return None, None, None
+
+    if density_type == "Nutrient-dense":
+        target_kcal, tol = 50, 10
+    else:
+        target_kcal, tol = 100, 20
+
+    best = None
+    best_diff = float("inf")
+
+    for _, row in portions.iterrows():
+        grams = row["portion_weight_g"]
+        kcal_val = (grams / 100) * kcal_per_100g
+        desc = str(row["portion_description"]).lower()
+
+        is_common = any(unit in desc for unit in COMMON_UNITS)
+        diff = abs(kcal_val - target_kcal)
+
+        if diff <= tol:
+            if best is None:
+                best = (desc, grams, kcal_val)
+                best_diff = diff
+            else:
+                # Prefer common units OR closer kcal match
+                best_is_common = any(unit in best[0] for unit in COMMON_UNITS)
+                if (is_common and not best_is_common) or diff < best_diff:
+                    best = (desc, grams, kcal_val)
+                    best_diff = diff
+
+    if best:
+        return best
+    else:
+        # Fallback: grams only
+        grams = (target_kcal / kcal_per_100g) * 100
+        return (f"{grams:.0f} g", grams, target_kcal)
 
 # --- DAILY TALLY ---
 today = datetime.date.today().isoformat()
@@ -48,72 +95,30 @@ def add_serving(density_type, amount=1.0):
         st.session_state.energy_servings += amount
     else:
         st.session_state.nutrient_servings += amount
+    st.experimental_rerun()  # 🔑 show updated tally immediately
 
-# --- SERVING PICKER ---
-COMMON_UNITS = ["cup", "tablespoon", "tbsp", "teaspoon", "tsp",
-                "slice", "piece", "serving", "packet", "bar", "stick", "bottle", "can"]
-
-def pick_serving(portions, kcal_per_100g, density_type):
-    """Return (desc, kcal) of best serving near 50 or 100 kcal"""
-    if pd.isna(kcal_per_100g) or kcal_per_100g == 0:
-        return None
-
-    if density_type == "Nutrient-dense":
-        target_kcal, tol = 50, 10
-    else:
-        target_kcal, tol = 100, 20
-
-    best_serving = None
-    best_diff = float("inf")
-
-    for _, row in portions.iterrows():
-        grams = row["portion_weight_g"]
-        kcal = (grams / 100) * kcal_per_100g
-        desc = str(row["portion_description"]).lower()
-
-        if abs(kcal - target_kcal) <= tol:
-            is_common = any(unit in desc for unit in COMMON_UNITS)
-            diff = abs(kcal - target_kcal)
-
-            if is_common and diff < best_diff:
-                best_serving = (row["portion_description"], kcal, grams)
-                best_diff = diff
-            elif not best_serving:
-                best_serving = (row["portion_description"], kcal, grams)
-
-    # Fallback: grams only
-    if not best_serving:
-        grams = (target_kcal / kcal_per_100g) * 100
-        best_serving = (f"{grams:.0f} g", target_kcal, grams)
-
-    return best_serving
-
-# --- UI HEADER ---
+# --- UI ---
 st.markdown("### 📊 Daily Tally")
 
-# Color-coded pill style
-st.markdown(
-    f"""
-    <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
-      <div style="background-color:#FFB347; padding:5px 10px; border-radius:12px;">
-        <span style="color:black; font-weight:bold;">Energy-dense: {st.session_state.energy_servings:.2f}</span>
-      </div>
-      <div style="background-color:#90EE90; padding:5px 10px; border-radius:12px;">
-        <span style="color:black; font-weight:bold;">Nutrient-dense: {st.session_state.nutrient_servings:.2f}</span>
-      </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Manual add dropdowns
 col1, col2 = st.columns(2)
 with col1:
+    st.markdown(
+        f"<div style='background-color:#ffcccc; padding:8px; border-radius:8px; text-align:center;'>"
+        f"<b>Energy-dense:</b><br><span style='font-size:20px; color:black;'>{st.session_state.energy_servings:.2f}</span>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
     amt = st.selectbox("Energy increment", [0.25, 0.5, 0.75, 1.0], key="energy_inc")
     if st.button("Add Energy", key="energy_btn"):
         add_serving("Energy-dense", amt)
 
 with col2:
+    st.markdown(
+        f"<div style='background-color:#ccffcc; padding:8px; border-radius:8px; text-align:center;'>"
+        f"<b>Nutrient-dense:</b><br><span style='font-size:20px; color:black;'>{st.session_state.nutrient_servings:.2f}</span>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
     amt = st.selectbox("Nutrient increment", [0.25, 0.5, 0.75, 1.0], key="nutrient_inc")
     if st.button("Add Nutrient", key="nutrient_btn"):
         add_serving("Nutrient-dense", amt)
@@ -121,13 +126,8 @@ with col2:
 st.markdown("---")
 
 # --- FOOD SEARCH ---
-query = st.text_input("Search for a food:")
-
-filter_choice = st.selectbox(
-    "Filter by type:",
-    ["All", "Nutrient-dense", "Energy-dense"],
-    index=0,
-)
+query = st.text_input("🔍 Search for a food:")
+filter_choice = st.selectbox("Filter by type:", ["All", "Nutrient-dense", "Energy-dense"])
 
 if query:
     matches = foods_df[foods_df["main_food_description"].str.contains(query, case=False, na=False)]
@@ -146,37 +146,35 @@ if query:
         if choice:
             code = options[choice]
             food_row = matches[matches["food_code"] == code].iloc[0]
-            category = food_row["density_category"]
 
-            st.markdown(
-                f"<h4 style='margin-bottom:0;'>{food_row['main_food_description']}</h4>",
-                unsafe_allow_html=True,
-            )
-            st.write(f"Category: {category}")
+            st.subheader(food_row["main_food_description"])
+            category = food_row["density_category"]
+            st.write(f"**Density type:** {category}")
 
             # Nutrients
             nut_row = nutrients_df[nutrients_df["food_code"] == code]
-            kcal = None
             if not nut_row.empty:
-                nut_row = nut_row.iloc[0]
-                kcal = nut_row.get("energy_kcal")
-                if pd.notna(kcal):
-                    st.write(f"Calories (100 g): {kcal:.0f} kcal")
+                kcal = nut_row.iloc[0].get("energy_kcal")
+            else:
+                kcal = None
 
-            # Portions
+            # Suggested serving
             portions = portions_df[portions_df["food_code"] == code]
             if kcal and not portions.empty:
                 serving = pick_serving(portions, kcal, category)
                 if serving:
-                    desc, kcal_val, grams = serving
-                    st.markdown(f"**Suggested serving:** {desc} (~{kcal_val:.0f} kcal, {grams:.0f} g)")
+                    desc, grams_val, kcal_val = serving
+                    st.markdown(f"**Suggested serving:** {desc} ({grams_val:.0f} g, ~{kcal_val:.0f} kcal)")
 
-                    amt = st.selectbox(
-                        "Add to tally:",
-                        [0.25, 0.5, 0.75, 1.0],
-                        key=f"{code}_{category}_inc",
-                    )
-                    if st.button("Add Serving", key=f"{code}_{category}_btn"):
+                    amt = st.selectbox("Add servings", [0.25, 0.5, 0.75, 1.0], key=f"add_{code}")
+                    if st.button("➕ Add to tally", key=f"btn_{code}"):
                         add_serving(category, amt)
+
+            elif kcal:
+                target = 50 if category == "Nutrient-dense" else 100
+                grams = (target / kcal) * 100
+                st.markdown(f"**Suggested serving:** {grams:.0f} g (~{target} kcal)")
+                if st.button("➕ Add to tally", key=f"btn_fallback_{code}"):
+                    add_serving(category)
             else:
-                st.info("No portion data available for this food.")
+                st.info("Nutrient data not available for this food.")
