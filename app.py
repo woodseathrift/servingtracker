@@ -18,7 +18,6 @@ def load_data():
             .str.replace(r"[()]", "", regex=True)
         )
 
-    # ✅ Return all three at the end
     return foods_df, nutrients_df, portions_df
 
 
@@ -72,7 +71,13 @@ def pick_fractional_serving(food_row, target_cal):
     base = portions[0]
     grams = base["portion_weight_g"]
     kcal_per_portion = grams * kcal_per_g
-    desc = base["portion_description"]
+
+    # clean description (remove leading "1 " or "one ")
+    desc = str(base["portion_description"]).lower()
+    if desc.startswith("1 "):
+        desc = desc[2:]
+    elif desc.startswith("one "):
+        desc = desc[4:]
 
     # compute fraction of this unit needed
     fraction = target_cal / kcal_per_portion
@@ -80,7 +85,6 @@ def pick_fractional_serving(food_row, target_cal):
 
     approx_cal = round(fraction * kcal_per_portion)
     return f"{fraction} {desc} (~{approx_cal} kcal)"
-
 
 
 def serving_for_food(food_row):
@@ -96,7 +100,6 @@ def add_serving(density_type, amount=1.0):
         st.session_state.energy_servings += amount
     else:
         st.session_state.nutrient_servings += amount
-    st.rerun()  # force UI update
 
 # ------------------- UI -------------------
 st.title("🥗 Serving Tracker")
@@ -105,14 +108,13 @@ query = st.text_input("Search food")
 if query:
     matches = foods_df[foods_df["main_food_description"].str.contains(query, case=False, na=False)]
     if not matches.empty:
-        # ✅ Build label → code dictionary
         options = {
             f'{row["main_food_description"]} (#{row["food_code"]})': row["food_code"]
             for _, row in matches.iterrows()
         }
         choice = st.selectbox("Select a food", list(options.keys()))
         if choice:
-            code = options[choice]  # ✅ safer than parsing with split
+            code = options[choice]
             food_row = foods_df[foods_df["food_code"] == code].iloc[0]
             density, serving_text = serving_for_food(food_row)
 
@@ -123,7 +125,7 @@ if query:
                 unsafe_allow_html=True,
             )
 
-            amt = st.selectbox("Add servings", [0.25, 0.5, 0.75, 1.0], key="amt")
+            amt = st.selectbox("Add servings", [0.25, 0.5, 0.75, 1.0], key="food_amt")
             if st.button("Add to tally"):
                 add_serving(density, amt)
 
