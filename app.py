@@ -78,7 +78,7 @@ def pick_fractional_serving(food_row, target_cal):
     # If no portions, fallback to grams
     if not usable_portions:
         grams = round(target_cal / kcal_per_g)
-        return f"{grams} g (~{target_cal} kcal)", grams, target_cal
+        return "g", grams, target_cal
 
     # Try all fractions for all usable portions, pick closest kcal
     best = None
@@ -99,30 +99,18 @@ def pick_fractional_serving(food_row, target_cal):
     elif desc.startswith("one "):
         desc = desc[4:]
 
-    # Format fraction nicely
-    if fraction.is_integer():
-        fraction_str = str(int(fraction))
-    else:
-        fraction_str = str(fraction)
+    return desc.strip(), grams, kcal_per_portion
 
-    # Add plural if needed
-    if fraction.is_integer() and fraction > 1 and not desc.endswith("s"):
-        desc += "s"
-
-    total_grams = round(fraction * grams)
-    approx_cal = round(approx_cal)
-
-    return f"{fraction_str} {desc} (≈{total_grams} g, ~{approx_cal} kcal)", total_grams, approx_cal
 
 def serving_for_food(food_row):
     code = str(food_row["food_code"])
     if code.startswith(("61", "63", "67", "72", "73", "74", "75", "76", "78")):
         density = "Nutrient-dense"
-        serving_text, grams, kcal = pick_fractional_serving(food_row, 50)
+        unit_desc, grams, kcal = pick_fractional_serving(food_row, 50)
     else:
         density = "Energy-dense"
-        serving_text, grams, kcal = pick_fractional_serving(food_row, 100)
-    return density, serving_text, grams, kcal
+        unit_desc, grams, kcal = pick_fractional_serving(food_row, 100)
+    return density, unit_desc, grams, kcal
 
 # ------------------- Add Servings -------------------
 def add_serving(density_type, amount=1.0):
@@ -165,7 +153,7 @@ if query or search_clicked:
             code = int(choice.split("#")[-1].strip(")"))
             food_row = foods_df[foods_df["food_code"] == code].iloc[0]
 
-            density, serving_text, base_grams, base_kcal = serving_for_food(food_row)
+            density, unit_desc, base_grams, base_kcal = serving_for_food(food_row)
             color = "#330000" if density == "Energy-dense" else "#003300"
 
     # Apply user amount choice
@@ -179,26 +167,14 @@ if query or search_clicked:
     total_grams = round(base_grams * amt)
     total_kcal = round(base_kcal * amt)
 
-    # Rebuild adjusted serving text with pluralization
-    unit_desc = serving_text.split("(", 1)[0].strip()  # e.g. "1 package"
-    if " " in unit_desc:
-        base_num, unit = unit_desc.split(" ", 1)
-    else:
-        base_num, unit = "1", unit_desc
+    # Pluralization
+    unit_adj = unit_desc
+    if amt > 1 and not unit_desc.endswith("s"):
+        unit_adj += "s"
 
-    if amt.is_integer():
-        amt_str = str(int(amt))
-    else:
-        amt_str = str(amt)
+    amt_str = str(int(amt)) if amt.is_integer() else str(amt)
 
-    if amt == 1:
-        display_serving = serving_text
-    else:
-        # pluralize if needed
-        unit_adj = unit
-        if amt > 1 and not unit.endswith("s"):
-            unit_adj += "s"
-        display_serving = f"{amt_str} {unit_adj} (≈{total_grams} g, ~{total_kcal} kcal)"
+    display_serving = f"{amt_str} {unit_adj} (≈{total_grams} g, ~{total_kcal} kcal)"
 
     st.markdown(
         f"<div style='background-color:{color}; padding:8px; border-radius:8px;'>"
@@ -206,23 +182,21 @@ if query or search_clicked:
         unsafe_allow_html=True,
     )
 
+    if st.button("Add to tally"):
+        add_serving(density, amt)
+        st.session_state.selected_foods.append({
+            "code": code,
+            "name": food_row["main_food_description"],
+            "density": density,
+            "amt": amt,
+        })
 
-            if st.button("Add to tally"):
-                add_serving(density, amt)
-                st.session_state.selected_foods.append({
-                    "code": code,
-                    "name": food_row["main_food_description"],
-                    "density": density,
-                    "amt": amt,
-                })
+        # safe reset of widget state
+        for k in ["food_search", "food_choice", "amt_choice"]:
+            if k in st.session_state:
+                del st.session_state[k]
 
-                # safe reset of widget state
-                for k in ["food_search", "food_choice", "amt_choice"]:
-                    if k in st.session_state:
-                        del st.session_state[k]
-
-                st.rerun()
-
+        st.rerun()
 
 # ------------------- Manual tally section -------------------
 st.subheader("Quick Add")
