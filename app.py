@@ -126,7 +126,10 @@ if query:
             f'{row["main_food_description"]} (#{row["food_code"]})': row["food_code"]
             for _, row in matches.iterrows()
         }
-        choice = st.selectbox("Select a food", list(options.keys()), key=f"choice_{query}")
+
+        # ✅ use a stable key instead of f"choice_{query}"
+        choice = st.selectbox("Select a food", list(options.keys()), key="food_choice")
+
         if choice:
             code = options[choice]
             if code not in [f["code"] for f in st.session_state.selected_foods]:
