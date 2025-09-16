@@ -98,8 +98,14 @@ if st.session_state.get("selected_item"):
     st.write(f"Nutritionix: {qty} {unit} = {calories:.0f} kcal")
 
     # classify food safely
-    tags = item.get("tags") or {}
-    food_group = (tags.get("food_group") or "").lower()
+    tags = item.get("tags")
+    food_group = ""
+
+    if isinstance(tags, dict):
+        raw_group = tags.get("food_group")
+        if isinstance(raw_group, str):
+            food_group = raw_group.lower()
+
     is_fruitveg = any(x in food_group for x in ["fruit", "vegetable", "veg"])
 
     if is_fruitveg:
@@ -108,6 +114,7 @@ if st.session_state.get("selected_item"):
     else:
         base_serving = 100
         serving_type = "Energy-dense"
+
 
     if calories > 0 and qty > 0:
         ratio = base_serving / calories
