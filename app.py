@@ -122,23 +122,20 @@ query = st.text_input("Search food", value=default_value, key="search_box")
 if query:
     matches = foods_df[foods_df["main_food_description"].str.contains(query, case=False, na=False)]
     if not matches.empty:
-        options = {
-            f'{row["main_food_description"]} (#{row["food_code"]})': row["food_code"]
+        options = ["-- choose a food --"] + [
+            f'{row["main_food_description"]} (#{row["food_code"]})'
             for _, row in matches.iterrows()
-        }
+        ]
+        choice = st.selectbox("Select a food", options, key="food_choice")
 
-        # ✅ use a stable key instead of f"choice_{query}"
-        choice = st.selectbox("Select a food", list(options.keys()), key="food_choice")
-
-        if choice:
-            code = options[choice]
+        if choice != "-- choose a food --":
+            code = int(choice.split("#")[-1].strip(")"))
             if code not in [f["code"] for f in st.session_state.selected_foods]:
                 food_row = foods_df[foods_df["food_code"] == code].iloc[0]
                 st.session_state.selected_foods.append({
                     "code": code,
                     "name": food_row["main_food_description"]
                 })
-                st.session_state.clear_search = True
                 st.rerun()
 
 # ------------------- Selected Foods Section -------------------
