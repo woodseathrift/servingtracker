@@ -119,6 +119,7 @@ else:
 
 query = st.text_input("Search food", value=default_value, key="search_box")
 
+query = st.text_input("Search food", key="search_box")
 if query:
     matches = foods_df[foods_df["main_food_description"].str.contains(query, case=False, na=False)]
     if not matches.empty:
@@ -126,7 +127,11 @@ if query:
             f'{row["main_food_description"]} (#{row["food_code"]})'
             for _, row in matches.iterrows()
         ]
-        choice = st.selectbox("Select a food", options, key="food_choice")
+        choice = st.selectbox(
+            "Select a food",
+            options,
+            key=f"choice_{query}"  # ✅ different key per query string
+        )
 
         if choice != "-- choose a food --":
             code = int(choice.split("#")[-1].strip(")"))
@@ -136,6 +141,7 @@ if query:
                     "code": code,
                     "name": food_row["main_food_description"]
                 })
+                st.session_state.search_box = ""  # ✅ clears input safely
                 st.rerun()
 
 # ------------------- Selected Foods Section -------------------
