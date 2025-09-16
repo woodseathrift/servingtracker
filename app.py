@@ -126,11 +126,12 @@ if query:
         choice = st.selectbox("Select a food", list(options.keys()), key=f"food_choice_{query}")
         if choice:
             code = options[choice]
-            # ✅ Only add once
+            # ✅ Only add the single chosen food
             if code not in [f["code"] for f in st.session_state.selected_foods]:
+                food_row = foods_df[foods_df["food_code"] == code].iloc[0]
                 st.session_state.selected_foods.append({
                     "code": code,
-                    "name": foods_df[foods_df["food_code"] == code].iloc[0]["main_food_description"]
+                    "name": food_row["main_food_description"]
                 })
 
 # ------------------- Selected Foods Section -------------------
