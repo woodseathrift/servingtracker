@@ -2,82 +2,47 @@ import streamlit as st
 import requests
 import datetime
 import pandas as pd
-
-# --- LOAD FPED DATA ---
-FPED_FILE = "FPED_1718.csv"
-fped_raw = pd.read_csv(FPED_FILE)
-
-# Melt to long format
-fped_long = fped_raw.melt(
-    id_vars=["FOODCODE", "DESCRIPTION"],
-    var_name="variable_name",
-    value_name="amount"
-)
-
-# Full mapping (variable_name → description + units)
-fped_meta = {
-    "F_TOTAL": "Total fruits (cup eq.)",
-    "F_CITMLB": "Citrus, melons & berries (cup eq.)",
-    "F_OTHER": "Other fruits (cup eq.)",
-    "F_JUICE": "Fruit juice (cup eq.)",
-    "V_TOTAL": "Total vegetables (cup eq.)",
-    "V_DRKGR": "Dark green vegetables (cup eq.)",
-    "V_REDOR_TOTAL": "Red & orange vegetables (cup eq.)",
-    "V_REDOR_TOMATO": "Tomatoes & tomato products (cup eq.)",
-    "V_REDOR_OTHER": "Other red & orange vegetables (cup eq.)",
-    "V_STARCHY_TOTAL": "Starchy vegetables (cup eq.)",
-    "V_STARCHY_POTATO": "White potatoes (cup eq.)",
-    "V_STARCHY_OTHER": "Other starchy vegetables (cup eq.)",
-    "V_OTHER": "Other vegetables (cup eq.)",
-    "V_LEGUMES": "Legumes as vegetables (cup eq.)",
-    "G_TOTAL": "Total grains (oz. eq.)",
-    "G_WHOLE": "Whole grains (oz. eq.)",
-    "G_REFINED": "Refined grains (oz. eq.)",
-    "PF_TOTAL": "Total protein foods (oz. eq.)",
-    "PF_MPS_TOTAL": "Meat, poultry, seafood & cured meats (oz. eq.)",
-    "PF_MEAT": "Meat (beef, pork, lamb, game) (oz. eq.)",
-    "PF_CUREDMEAT": "Cured/luncheon meat (oz. eq.)",
-    "PF_ORGAN": "Organ meats (oz. eq.)",
-    "PF_POULT": "Poultry (oz. eq.)",
-    "PF_SEAFD_HI": "Seafood high in n-3 (oz. eq.)",
-    "PF_SEAFD_LOW": "Seafood low in n-3 (oz. eq.)",
-    "PF_EGGS": "Eggs & substitutes (oz. eq.)",
-    "PF_SOY": "Soy products (oz. eq.)",
-    "PF_NUTSDS": "Nuts & seeds (oz. eq.)",
-    "PF_LEGUMES": "Legumes as protein foods (oz. eq.)",
-    "D_TOTAL": "Total dairy (cup eq.)",
-    "D_MILK": "Milk & fortified soy milk (cup eq.)",
-    "D_YOGURT": "Yogurt (cup eq.)",
-    "D_CHEESE": "Cheese (cup eq.)",
-    "OILS": "Oils (g)",
-    "SOLID_FATS": "Solid fats (g)",
-    "ADD_SUGARS": "Added sugars (tsp. eq.)",
-    "A_DRINKS": "Alcoholic drinks"
-}
-
-# Add human-readable labels
-fped_long["variable_label"] = fped_long["variable_name"].map(fped_meta)
-
-# Helper function
-def get_fped_servings(food_code):
-    rows = fped_long[(fped_long["FOODCODE"] == food_code) & (fped_long["amount"] > 0)]
-    servings = []
-    for _, r in rows.iterrows():
-        label = r["variable_label"] or r["variable_name"]
-        val = r["amount"]
-        servings.append(f"{val:.2f} {label}")
-    return servings
+from difflib import get_close_matches
 
 # --- CONFIG ---
 FDC_API_KEY = "HvgXfQKOj8xIz3vubw8K87mOrankyf22ld4dHnAS"
 SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
 
-NUTRIENT_DENSE_CATEGORIES = [
-    "Fruits and Fruit Juices",
-    "Vegetables and Vegetable Products",
-]
+# --- LOAD FNDDS FILES ---
+FOODS_FILE = "2017-2018 FNDDS At A Glance - Foods and Beverages.csv"
+PORTIONS_FILE = "2017-2018 FNDDS At A Glance - Portions and Weights.csv"
 
-# --- RESET DAILY ---
+foods_df = pd.read_csv(FOODS_FILE)
+portions_df = pd.read_csv(PORTIONS_FILE)
+
+# Make lookup dictionaries
+foodcode_to_desc = dict(zip(foods_df["Food code"], foods_df["Main food description"]))
+desc_to_foodcode = {v.lower(): k for k, v in foodcode_to_desc.items()}
+
+# Portion lookup: food code → list of portion options
+def get_portions(food_code, description):
+    """Return portion choices for a given food code or description"""
+    # Try direct food code match
+    if food_code in portions_df["Food code"].values:
+        subset = portions_df[portions_df["Food code"] == food_code]
+    else:
+        # Fuzzy match by description if foodCode not aligned
+        matches = get_close_matches(description.lower(), desc_to_foodcode.keys(), n=1, cutoff=0.6)
+        if matches:
+            match_code = desc_to_foodcode[matches[0]]
+            subset = portions_df[portions_df["Food code"] == match_code]
+        else:
+            return []
+
+    portions = []
+    for _, row in subset.iterrows():
+        desc = row["Portion description"]
+        grams = row["Portion weight (g)"]
+        portions.append(f"{desc} ({grams:.0f} g)")
+    return portions
+
+
+# --- RESET DAILY STATE ---
 today = datetime.date.today().isoformat()
 if "day" not in st.session_state or st.session_state.day != today:
     st.session_state.day = today
@@ -86,8 +51,9 @@ if "day" not in st.session_state or st.session_state.day != today:
     st.session_state.search_results = []
     st.session_state.selected_food = None
 
-st.title("🥗 Food Tracker (USDA + FPED)")
+st.title("🥗 Food Tracker (USDA + FNDDS)")
 
+# --- HELPERS ---
 def round_quarter(x):
     return round(x * 4) / 4
 
@@ -117,9 +83,7 @@ if st.session_state.search_results:
         f"{f['description']} ({f.get('foodCategory','Unknown')})"
         for f in st.session_state.search_results
     ]
-    choice = st.selectbox(
-        "Pick a food:", labels, index=0, key="choice_box"
-    )
+    choice = st.selectbox("Pick a food:", labels, index=0, key="choice_box")
     st.session_state.selected_food = st.session_state.search_results[labels.index(choice)]
 
 # --- DETAILS ---
@@ -131,7 +95,7 @@ if st.session_state.selected_food:
     st.subheader(desc)
     st.write(f"Category: {cat}")
 
-    # USDA kcal/100g
+    # --- USDA kcal/100g ---
     kcal = None
     for n in food.get("foodNutrients", []):
         if isinstance(n, dict):
@@ -142,34 +106,30 @@ if st.session_state.selected_food:
     if kcal:
         st.write(f"USDA: ~{kcal:.0f} kcal per 100 g")
 
-    # --- FPED match ---
-    food_code = food.get("foodCode")
-    if food_code:
-        fped_servings = get_fped_servings(food_code)
-    else:
-        fped_servings = []
+    # --- FNDDS portion lookup ---
+    food_code = food.get("foodCode")  # sometimes USDA has this
+    portions = get_portions(food_code, desc)
 
-    if fped_servings:
-        choice = st.selectbox("Choose a portion size:", fped_servings)
+    if portions:
+        portion_choice = st.selectbox("Choose a portion size:", portions)
     else:
-        st.info("No FPED serving equivalents found — defaulting to 100 g.")
-        choice = "100 g"
+        st.info("No FNDDS portion found — defaulting to 100 g.")
+        portion_choice = "100 g"
 
-    # How many portions
+    # --- Number of servings ---
     servings = st.selectbox(
-        "How many servings?", [0.25,0.5,0.75,1,2], index=3, key=f"{desc}_servings"
+        "How many servings?", [0.25, 0.5, 0.75, 1, 2], index=3, key=f"{desc}_servings"
     )
-    st.write(f"= {servings} × {choice}")
+    st.write(f"= {servings} × {portion_choice}")
 
+    # --- Totals update ---
     if st.button(f"Add {desc}", key=f"add_{desc}"):
-        if cat in NUTRIENT_DENSE_CATEGORIES:
+        if "Fruit" in cat or "Vegetable" in cat:
             st.session_state.nutrient_servings += servings
         else:
             st.session_state.energy_servings += servings
 
-# --- TOTALS ---
+# --- SIDEBAR TOTALS ---
 st.sidebar.header("Today's totals")
-st.sidebar.metric("Energy-dense servings",
-    round(st.session_state.energy_servings*4)/4)
-st.sidebar.metric("Nutrient-dense servings",
-    round(st.session_state.nutrient_servings*4)/4)
+st.sidebar.metric("Energy-dense servings", round(st.session_state.energy_servings * 4) / 4)
+st.sidebar.metric("Nutrient-dense servings", round(st.session_state.nutrient_servings * 4) / 4)
