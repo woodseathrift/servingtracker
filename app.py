@@ -63,10 +63,11 @@ COMMON_UNITS = [
 def pick_fractional_serving(food_row, target_cal):
     kcal_row = nutrients_df[nutrients_df["food_code"] == food_row["food_code"]]
     if kcal_row.empty:
-        return "No kcal data", 0, 0, "g"
+        return "No kcal data", 0, 0
     kcal_per_100g = kcal_row.iloc[0]["energy_kcal"]
     kcal_per_g = kcal_per_100g / 100
 
+    # Get all usable portions
     portion_rows = portions_df[portions_df["food_code"] == food_row["food_code"]]
     usable_portions = []
     for _, row in portion_rows.iterrows():
@@ -74,46 +75,54 @@ def pick_fractional_serving(food_row, target_cal):
         if any(u in desc for u in COMMON_UNITS):
             usable_portions.append(row)
 
+    # If no portions, fallback to grams
     if not usable_portions:
         grams = round(target_cal / kcal_per_g)
-        return f"{grams} g (~{target_cal} kcal)", grams, target_cal, "g"
+        return f"{grams} g (~{target_cal} kcal)", grams, target_cal
 
-    chosen = None
+    # Try all fractions for all usable portions, pick closest kcal
+    best = None
     for _, row in pd.DataFrame(usable_portions).iterrows():
         grams = row["portion_weight_g"]
         kcal_per_portion = grams * kcal_per_g
-        fraction = target_cal / kcal_per_portion
-        fraction = round(fraction * 4) / 4
-        if fraction >= 0.25:
-            chosen = (row, fraction, kcal_per_portion, grams)
-            break
+        for f in [i * 0.25 for i in range(1, 17)]:  # 0.25 to 4.0
+            kcal_est = f * kcal_per_portion
+            diff = abs(kcal_est - target_cal)
+            if best is None or diff < best[0]:
+                best = (diff, row, f, kcal_per_portion, grams, kcal_est)
 
-    if not chosen:
-        grams = round(target_cal / kcal_per_g)
-        return f"{grams} g (~{target_cal} kcal)", grams, target_cal, "g"
-
-    base, fraction, kcal_per_portion, grams = chosen
+    # Use best option
+    _, base, fraction, kcal_per_portion, grams, approx_cal = best
     desc = str(base["portion_description"]).lower()
     if desc.startswith("1 "):
         desc = desc[2:]
     elif desc.startswith("one "):
         desc = desc[4:]
 
-    approx_cal = round(fraction * kcal_per_portion)
+    # Format fraction nicely
+    if fraction.is_integer():
+        fraction_str = str(int(fraction))
+    else:
+        fraction_str = str(fraction)
+
+    # Add plural if needed
+    if fraction.is_integer() and fraction > 1 and not desc.endswith("s"):
+        desc += "s"
+
     total_grams = round(fraction * grams)
+    approx_cal = round(approx_cal)
 
-    return f"{fraction} {desc} (≈{total_grams} g, ~{approx_cal} kcal)", total_grams, approx_cal, desc
-
+    return f"{fraction_str} {desc} (≈{total_grams} g, ~{approx_cal} kcal)", total_grams, approx_cal
 
 def serving_for_food(food_row):
     code = str(food_row["food_code"])
     if code.startswith(("61", "63", "67", "72", "73", "74", "75", "76", "78")):
         density = "Nutrient-dense"
-        serving_text, grams, kcal, desc = pick_fractional_serving(food_row, 50)
+        serving_text, grams, kcal = pick_fractional_serving(food_row, 50)
     else:
         density = "Energy-dense"
-        serving_text, grams, kcal, desc = pick_fractional_serving(food_row, 100)
-    return density, serving_text, grams, kcal, desc
+        serving_text, grams, kcal = pick_fractional_serving(food_row, 100)
+    return density, serving_text, grams, kcal
 
 # ------------------- Add Servings -------------------
 def add_serving(density_type, amount=1.0):
@@ -126,17 +135,21 @@ def add_serving(density_type, amount=1.0):
 st.title("🥗 Serving Tracker")
 
 # --- Search box with button ---
-col1, col2 = st.columns([4, 1])
+col1, col2 = st.columns([4, 1])  # wide input, narrow button
 with col1:
     query = st.text_input("Search for a food", value="", key="food_search")
 with col2:
     search_clicked = st.button("🔍 Search")
 
 if query or search_clicked:
+    # normalize query and split into tokens (keeps '%' etc.)
     q = query.strip().lower()
     tokens = re.findall(r'\S+', q)
 
+    # normalized descriptions (safe for NaNs)
     desc_series = foods_df['main_food_description'].fillna('').str.lower()
+
+    # match if ALL tokens appear anywhere in the description (order-independent)
     mask = desc_series.apply(lambda s: all(tok in s for tok in tokens))
     matches = foods_df[mask]
 
@@ -152,24 +165,23 @@ if query or search_clicked:
             code = int(choice.split("#")[-1].strip(")"))
             food_row = foods_df[foods_df["food_code"] == code].iloc[0]
 
-            density, serving_text, base_grams, base_kcal, unit_desc = serving_for_food(food_row)
+            density, serving_text, base_grams, base_kcal = serving_for_food(food_row)
             color = "#330000" if density == "Energy-dense" else "#003300"
 
+            # Apply user amount choice
             amt = st.selectbox(
                 "Add servings",
                 [0.25, 0.5, 0.75, 1, 2],
                 index=3,
                 key="amt_choice"
             )
-
             total_grams = round(base_grams * amt)
             total_kcal = round(base_kcal * amt)
 
-            # Display string cleaned up
-            if unit_desc == "g":
-                display_serving = f"{total_grams} g (~{total_kcal} kcal)"
+            if amt == 1:
+                display_serving = serving_text
             else:
-                display_serving = f"{amt} {unit_desc} (≈{total_grams} g, ~{total_kcal} kcal)"
+                display_serving = f"{amt} × {serving_text} → (≈{total_grams} g, ~{total_kcal} kcal)"
 
             st.markdown(
                 f"<div style='background-color:{color}; padding:8px; border-radius:8px;'>"
@@ -186,10 +198,13 @@ if query or search_clicked:
                     "amt": amt,
                 })
 
+                # safe reset of widget state
                 for k in ["food_search", "food_choice", "amt_choice"]:
                     if k in st.session_state:
                         del st.session_state[k]
+
                 st.rerun()
+
 
 # ------------------- Manual tally section -------------------
 st.subheader("Quick Add")
