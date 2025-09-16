@@ -115,7 +115,7 @@ def add_serving(density_type, amount=1.0):
 # ------------------- UI -------------------
 st.title("🥗 Serving Tracker")
 
-query = st.text_input("Search food")
+query = st.text_input("Search food", key="search_box")
 if query:
     matches = foods_df[foods_df["main_food_description"].str.contains(query, case=False, na=False)]
     if not matches.empty:
@@ -123,16 +123,18 @@ if query:
             f'{row["main_food_description"]} (#{row["food_code"]})': row["food_code"]
             for _, row in matches.iterrows()
         }
-        choice = st.selectbox("Select a food", list(options.keys()), key=f"food_choice_{query}")
+        choice = st.selectbox("Select a food", list(options.keys()), key=f"choice_{query}")
         if choice:
             code = options[choice]
-            # ✅ Only add the single chosen food
             if code not in [f["code"] for f in st.session_state.selected_foods]:
                 food_row = foods_df[foods_df["food_code"] == code].iloc[0]
                 st.session_state.selected_foods.append({
                     "code": code,
                     "name": food_row["main_food_description"]
                 })
+                # 🔑 Reset search after adding
+                st.session_state.search_box = ""
+                st.rerun()
 
 # ------------------- Selected Foods Section -------------------
 st.subheader("Selected Foods")
