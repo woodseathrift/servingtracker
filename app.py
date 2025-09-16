@@ -115,7 +115,9 @@ def add_serving(density_type, amount=1.0):
 # ------------------- UI -------------------
 st.title("🥗 Serving Tracker")
 
-query = st.text_input("Search food", key="search_box")
+# ✅ Use a unique key for the search box that we can reset
+query = st.text_input("Search food", value=st.session_state.get("search_text", ""), key="search_input")
+
 if query:
     matches = foods_df[foods_df["main_food_description"].str.contains(query, case=False, na=False)]
     if not matches.empty:
@@ -132,9 +134,10 @@ if query:
                     "code": code,
                     "name": food_row["main_food_description"]
                 })
-                # 🔑 Reset search after adding
-                st.session_state.search_box = ""
+                # 🔑 Reset search text only (not the widget key)
+                st.session_state.search_text = ""
                 st.rerun()
+
 
 # ------------------- Selected Foods Section -------------------
 st.subheader("Selected Foods")
