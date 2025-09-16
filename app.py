@@ -70,7 +70,7 @@ def pick_fractional_serving(food_row, target_cal):
 
     # pick first common unit portion
     base = portions[0]
-    grams = base["gram_weight"]
+    grams = base["portion_weight_g"]
     kcal_per_portion = grams * kcal_per_g
     desc = base["portion_description"]
 
