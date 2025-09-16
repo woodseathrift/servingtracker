@@ -10,7 +10,7 @@ def load_data():
     portions_df = pd.read_csv("2017-2018 FNDDS At A Glance - Portions and Weights.csv", skiprows=1)
     return df
 
-foods = load_food_data()
+foods_df, nutrients_df, portions_df = load_data()
 
 # ------------------- Initialize State -------------------
 if "energy_servings" not in st.session_state:
