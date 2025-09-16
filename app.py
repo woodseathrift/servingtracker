@@ -83,9 +83,14 @@ def pick_fractional_serving(food_row, target_cal):
     fraction = target_cal / kcal_per_portion
     fraction = round(fraction * 4) / 4  # nearest 0.25
 
-    approx_cal = round(fraction * kcal_per_portion)
-    return f"{fraction} {desc} (~{approx_cal} kcal)"
+    # pretty print (avoid "1.0")
+    fraction_str = str(int(fraction)) 
+    if fraction.is_integer() and fraction > 1 and desc.endswith("s") is False:
+        desc += "s"
+    else str(fraction)
 
+    approx_cal = round(fraction * kcal_per_portion)
+    return f"{fraction_str} {desc} (~{approx_cal} kcal)"
 
 def serving_for_food(food_row):
     code = str(food_row["food_code"])
@@ -112,7 +117,11 @@ if query:
             f'{row["main_food_description"]} (#{row["food_code"]})': row["food_code"]
             for _, row in matches.iterrows()
         }
-        choice = st.selectbox("Select a food", list(options.keys()))
+        choice = st.selectbox(
+            "Select a food",
+            list(options.keys()),
+            key=f"food_choice_{query}"  # 🔑 force refresh when query changes
+        )
         if choice:
             code = options[choice]
             food_row = foods_df[foods_df["food_code"] == code].iloc[0]
