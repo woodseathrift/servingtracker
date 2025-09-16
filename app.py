@@ -50,15 +50,20 @@ def add_serving(density_type, amount=1.0):
         st.session_state.nutrient_servings += amount
 
 # --- UI HEADER ---
+st.markdown("### 📊 Daily Tally")
+
+# Color-coded pill style
 st.markdown(
-    "<h3 style='margin-bottom:0;'>📊 Daily Tally</h3>", unsafe_allow_html=True
-)
-st.markdown(
-    f"<p style='color:black; margin:0;'>Energy-dense: {st.session_state.energy_servings:.2f}</p>",
-    unsafe_allow_html=True,
-)
-st.markdown(
-    f"<p style='color:black; margin:0;'>Nutrient-dense: {st.session_state.nutrient_servings:.2f}</p>",
+    f"""
+    <div style="display:flex; gap:10px; margin-bottom:10px;">
+      <div style="background-color:#FFB347; padding:5px 10px; border-radius:12px;">
+        <span style="color:black; font-weight:bold;">Energy-dense: {st.session_state.energy_servings:.2f}</span>
+      </div>
+      <div style="background-color:#90EE90; padding:5px 10px; border-radius:12px;">
+        <span style="color:black; font-weight:bold;">Nutrient-dense: {st.session_state.nutrient_servings:.2f}</span>
+      </div>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
@@ -144,9 +149,7 @@ if query:
                     cols = st.columns(4)
                     for i, amt in enumerate([0.25, 0.5, 0.75, 1.0]):
                         color = "#FF8C00" if category == "Energy-dense" else "#228B22"
-                        if cols[i].button(
-                            f"+{amt}", key=f"{code}_{category}_{amt}"
-                        ):
+                        if cols[i].button(f"+{amt}", key=f"{code}_{category}_{amt}"):
                             add_serving(category, amt)
                         cols[i].markdown(
                             f"<div style='color:{color}; font-size:12px;'>{amt}x</div>",
