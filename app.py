@@ -110,39 +110,46 @@ def add_serving(density_type, amount=1.0):
 # ------------------- UI -------------------
 st.title("🥗 Serving Tracker")
 
-# Handle clearing of search safely
-if "clear_search" not in st.session_state:
-    st.session_state.clear_search = False
-
-if st.session_state.clear_search:
-    default_value = ""
-    st.session_state.clear_search = False
-else:
-    default_value = st.session_state.get("search_box", "")
-
-query = st.text_input("Search food", value=default_value, key="search_box")
+# --- Search box ---
+query = st.text_input("Search for a food", value="", key="food_search")
 
 if query:
     matches = foods_df[foods_df["main_food_description"].str.contains(query, case=False, na=False)]
     if not matches.empty:
-        options = [
+        options = ["-- choose a food --"] + [
             f'{row["main_food_description"]} (#{row["food_code"]})'
             for _, row in matches.iterrows()
         ]
-        choice = st.selectbox("Select a food", ["-- choose a food --"] + options, key="food_choice")
+
+        choice = st.selectbox("Select a food", options, key="food_choice")
 
         if choice != "-- choose a food --":
             code = int(choice.split("#")[-1].strip(")"))
-            if code not in [f["code"] for f in st.session_state.selected_foods]:
-                food_row = foods_df[foods_df["food_code"] == code].iloc[0]
-                st.session_state.selected_foods.append({
-                    "code": code,
-                    "name": food_row["main_food_description"]
-                })
-                # set flag to clear search on next run
-                st.session_state.clear_search = True
-                st.rerun()
+            food_row = foods_df[foods_df["food_code"] == code].iloc[0]
 
+            density, serving_text = serving_for_food(food_row)
+            color = "#330000" if density == "Energy-dense" else "#003300"
+
+            st.markdown(
+                f"<div style='background-color:{color}; padding:8px; border-radius:8px;'>"
+                f"<b>{food_row['main_food_description']}</b><br>{density}: {serving_text}</div>",
+                unsafe_allow_html=True,
+            )
+
+            amt = st.selectbox(
+                "Add servings",
+                [0.25, 0.5, 0.75, 1, 2],
+                index=3,
+                key="amt_choice"
+            )
+
+            if st.button("Add to tally"):
+                add_serving(density, amt)
+                # ✅ clear search + reset UI
+                st.session_state.food_search = ""
+                st.session_state.food_choice = "-- choose a food --"
+                st.session_state.amt_choice = 1
+                st.rerun()
 
 # ------------------- Selected Foods Section -------------------
 st.subheader("Selected Foods")
