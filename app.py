@@ -94,7 +94,7 @@ st.title("🥗 Serving Tracker")
 
 query = st.text_input("Search food")
 if query:
-    matches = foods[foods["main_food_description"].str.contains(query, case=False, na=False)]
+    matches = foods_df[foods_df["main_food_description"].str.contains(query, case=False, na=False)]
     if not matches.empty:
         choice = st.selectbox(
             "Select a food",
