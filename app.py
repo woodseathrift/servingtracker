@@ -50,6 +50,16 @@ COMMON_UNITS = [
 ]
 
 def pick_fractional_serving(food_row, target_cal):
+    # get kcal per 100g from nutrients_df
+    kcal_row = nutrients_df[
+        (nutrients_df["food_code"] == food_row["food_code"]) &
+        (nutrients_df["nutrient_description"].str.contains("Energy", case=False, na=False))
+    ]
+    if kcal_row.empty:
+        return "No kcal data"
+    kcal_per_100g = kcal_row.iloc[0]["nutrient_value"]
+    kcal_per_g = kcal_per_100g / 100
+
     # Filter common unit portions
     portions = []
     for _, row in portions_df[portions_df["food_code"] == food_row["food_code"]].iterrows():
@@ -58,13 +68,13 @@ def pick_fractional_serving(food_row, target_cal):
             portions.append(row)
     if not portions:
         # fallback to grams
-        kcal_per_g = food_row["kcal"] / food_row["gram_weight"]
         grams = round(target_cal / kcal_per_g)
         return f"{grams} g (~{target_cal} kcal)"
 
     # pick first common unit portion
     base = portions[0]
-    kcal_per_portion = base["kcal"]
+    grams = base["gram_weight"]
+    kcal_per_portion = grams * kcal_per_g
     desc = base["portion_description"]
 
     # compute fraction of this unit needed
@@ -73,6 +83,7 @@ def pick_fractional_serving(food_row, target_cal):
 
     approx_cal = round(fraction * kcal_per_portion)
     return f"{fraction} {desc} (~{approx_cal} kcal)"
+
 
 def serving_for_food(food_row):
     code = str(food_row["food_code"])
