@@ -125,7 +125,7 @@ if query:
                 unsafe_allow_html=True,
             )
 
-            amt = st.selectbox("Add servings", [0.25, 0.5, 0.75, 1.0], key="food_amt")
+            amt = st.selectbox("Add servings", [0.25, 0.5, 0.75, 1, 2], index=3, key="food_amt")
             if st.button("Add to tally"):
                 add_serving(density, amt)
 
@@ -133,11 +133,11 @@ if query:
 st.subheader("Quick Add")
 col1, col2 = st.columns(2)
 with col1:
-    amt = st.selectbox("Serving increment", [0.25, 0.5, 0.75, 1.0], key="energy_inc")
+    amt = st.selectbox("Serving increment", [0.25, 0.5, 0.75, 1, 2], index=3, key="energy_inc")
     if st.button("⚡ Add Energy ⚡"):
         add_serving("Energy-dense", amt)
 with col2:
-    amt = st.selectbox("Serving increment", [0.25, 0.5, 0.75, 1.0], key="nutrient_inc")
+    amt = st.selectbox("Serving increment", [0.25, 0.5, 0.75, 1, 2], index=3, key="nutrient_inc")
     if st.button("🌱 Add Nutrient 🌱"):
         add_serving("Nutrient-dense", amt)
 
