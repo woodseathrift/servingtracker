@@ -180,8 +180,25 @@ for food in st.session_state.selected_foods:
         index=3,
         key=f"amt_{food['code']}"
     )
-    if st.button("Add to tally", key=f"add_{food['code']}"):
-        add_serving(density, amt)
+    if st.button("Add to tally"):
+    add_serving(density, amt)
+
+    # also keep track of the food in session_state
+    st.session_state.selected_foods.append({
+        "code": code,
+        "name": food_row["main_food_description"],
+        "density": density,
+        "amt": amt,
+    })
+
+    # ✅ clear search + reset UI
+    st.session_state.update({
+        "food_search": "",
+        "food_choice": "-- choose a food --",
+        "amt_choice": 1.0
+    })
+
+    st.rerun()
 
 # ------------------- Manual tally section -------------------
 st.subheader("Quick Add")
