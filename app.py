@@ -65,17 +65,7 @@ if st.session_state.selected_food:
     st.subheader(desc)
     st.write(f"Category: {cat}")
 
-    # Serving classification
-    if cat in NUTRIENT_DENSE_CATEGORIES:
-        base_serving = 50
-        serving_type = "Nutrient-dense"
-        kcal_range = (40, 60)
-    else:
-        base_serving = 100
-        serving_type = "Energy-dense"
-        kcal_range = (80, 120)
-
-    # Try to pull calories
+    # Extract kcal/100g
     kcal = None
     for n in food.get("foodNutrients", []):
         if isinstance(n, dict):
@@ -86,26 +76,41 @@ if st.session_state.selected_food:
 
     if kcal:
         st.write(f"USDA: ~{kcal:.0f} kcal per 100 g")
-        factor = base_serving / kcal if kcal > 0 else 1
-        adj_qty = round_quarter(100 * factor)
     else:
-        st.write("No kcal data — using default base serving")
-        adj_qty = base_serving
+        st.write("No kcal data available.")
 
-    st.write(f"👉 1 {serving_type} serving ≈ {adj_qty} g "
-             f"({kcal_range[0]}–{kcal_range[1]} kcal target)")
+    # --- Household measures ---
+    portions = food.get("foodPortions", [])
+    if portions:
+        labels = []
+        gram_weights = []
+        for p in portions:
+            desc_p = p.get("portionDescription")
+            grams = p.get("gramWeight")
+            if desc_p and grams:
+                labels.append(f"{desc_p} (~{grams:.0f} g)")
+                gram_weights.append(grams)
 
+        # let user pick portion size
+        portion_choice = st.selectbox("Choose a portion:", labels, index=0)
+        grams_per_portion = gram_weights[labels.index(portion_choice)]
+    else:
+        st.info("No household measures available — using 100 g as base.")
+        grams_per_portion = 100
+        portion_choice = "100 g"
+
+    # number of portions
     servings = st.selectbox(
         "How many servings?", [0.25,0.5,0.75,1,2], index=3, key=f"{desc}_servings"
     )
-    total_qty = round_quarter(adj_qty * servings)
-    st.write(f"= {total_qty} g")
+    total_qty = round_quarter(grams_per_portion * servings)
+    st.write(f"= {total_qty} g total ({portion_choice} × {servings})")
 
     if st.button(f"Add {desc}", key=f"add_{desc}"):
-        if serving_type == "Energy-dense":
-            st.session_state.energy_servings += servings
-        else:
+        if cat in NUTRIENT_DENSE_CATEGORIES:
             st.session_state.nutrient_servings += servings
+        else:
+            st.session_state.energy_servings += servings
 
 # --- TOTALS ---
 st.sidebar.header("Today's totals")
