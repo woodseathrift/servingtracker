@@ -16,7 +16,7 @@ def load_data():
 
 foods_df, nutrients_df, portions_df = load_data()
 
-# Normalize column names (strip spaces, lowercase, replace with _)
+# Normalize column names
 foods_df.columns = foods_df.columns.str.strip().str.lower().str.replace(" ", "_")
 nutrients_df.columns = nutrients_df.columns.str.strip().str.lower().str.replace(" ", "_")
 portions_df.columns = portions_df.columns.str.strip().str.lower().str.replace(" ", "_")
@@ -27,7 +27,7 @@ st.title("🥗 Food Tracker (FNDDS 2017–2018)")
 query = st.text_input("Search for a food:")
 
 if query:
-    matches = foods_df[foods_df["main_food_description"].str.contains(query, case=False, na=False)]
+    matches = nutrients_df[nutrients_df["main_food_description"].str.contains(query, case=False, na=False)]
     if matches.empty:
         st.warning("No matches found.")
     else:
@@ -41,20 +41,19 @@ if query:
             st.subheader(food_row["main_food_description"])
             st.write(f"Category: {food_row.get('wweia_category_description', 'Unknown')}")
 
-            # Nutrients (kcal only for now)
-            if "nutrient_description" in nutrients_df.columns:
-                kcal_row = nutrients_df[
-                    (nutrients_df["food_code"] == code) &
-                    (nutrients_df["nutrient_description"].str.contains("Energy", case=False))
-                ]
-                kcal = kcal_row["nutrient_value_per_100_g"].values[0] if not kcal_row.empty else None
-            else:
-                kcal = None
+            # --- Show core nutrients ---
+            kcal = food_row.get("energy_(kcal)")
+            protein = food_row.get("protein_(g)")
+            carbs = food_row.get("carbohydrate_(g)")
+            fat = food_row.get("total_fat_(g)")
 
-            if kcal:
-                st.write(f"~{kcal:.0f} kcal per 100 g")
+            st.markdown("**Nutrients per 100 g:**")
+            st.write(f"Energy: {kcal:.0f} kcal" if pd.notna(kcal) else "Energy: N/A")
+            st.write(f"Protein: {protein:.1f} g" if pd.notna(protein) else "Protein: N/A")
+            st.write(f"Carbs: {carbs:.1f} g" if pd.notna(carbs) else "Carbs: N/A")
+            st.write(f"Fat: {fat:.1f} g" if pd.notna(fat) else "Fat: N/A")
 
-            # Portion equivalents
+            # --- Portion equivalents ---
             portions = portions_df[portions_df["food_code"] == code]
             if not portions.empty:
                 portion_options = [
@@ -65,5 +64,7 @@ if query:
                 if portion_choice:
                     grams = float(portion_choice.split("(")[-1].replace("g)", "").strip())
                     st.write(f"You selected: {portion_choice} → {grams} g")
+                    if pd.notna(kcal):
+                        st.write(f"Estimated energy: ~{(grams/100)*kcal:.0f} kcal")
             else:
                 st.info("No portion equivalents available for this food.")
