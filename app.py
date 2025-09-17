@@ -181,7 +181,7 @@ st.markdown(
     /* Make title smaller on mobile */
     @media (max-width: 600px) {
         h1 {
-            font-size: 1.5rem !important;
+            font-size: 2rem !important;
         }
     }
 
