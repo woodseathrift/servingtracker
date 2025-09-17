@@ -170,12 +170,23 @@ with col2:
 st.markdown(
     """
     <style>
-    .stTextInput>div>div>input {
+    .search-row {
+        display: flex;
+        align-items: stretch;
+        max-width: 600px;
+        margin-bottom: 1em;
+    }
+    .search-row > div:first-child {
+        flex-grow: 1;
+    }
+    .search-row > div:last-child {
+        flex-shrink: 0;
+    }
+    div[data-testid="stTextInput"] > div > div > input {
         border-radius: 8px 0 0 8px !important;
     }
     div[data-testid="stButton"] button {
         border-radius: 0 8px 8px 0 !important;
-        margin-left: -8px;
         height: 100%;
         padding: 0.5em 0.75em;
     }
@@ -184,17 +195,17 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-cols = st.columns([1, 0.15])
-with cols[0]:
+search_cols = st.columns([1, 0.15], gap="small")
+with search_cols[0]:
     query = st.text_input(
         "Search for a food",
         value="",
         key="food_search",
         label_visibility="collapsed",
     )
-with cols[1]:
+with search_cols[1]:
     search_clicked = st.button("🔍")
-
+    
 if (query and query.strip()) or search_clicked:
     q = query.strip().lower()
     # --- Word-based search ---
