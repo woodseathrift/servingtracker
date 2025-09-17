@@ -60,6 +60,17 @@ COMMON_UNITS = [
     "small", "medium", "large"
 ]
 
+BAD_PHRASES = [
+    "guideline amount", 
+    "as consumed", 
+    "recipe", 
+    "per 100", 
+    "added", 
+    "on cereal", 
+    "with milk", 
+    "per cup of hot cereal"
+]
+
 def pick_fractional_serving(food_row, target_cal):
     kcal_row = nutrients_df[nutrients_df["food_code"] == food_row["food_code"]]
     if kcal_row.empty:
@@ -72,7 +83,7 @@ def pick_fractional_serving(food_row, target_cal):
     usable_portions = []
     for _, row in portion_rows.iterrows():
         desc = str(row["portion_description"]).lower()
-        if any(u in desc for u in COMMON_UNITS):
+        if any(u in desc for u in COMMON_UNITS) and not any(bad in desc for bad in BAD_PHRASES):
             usable_portions.append(row)
 
     # If no portions, fallback to grams
