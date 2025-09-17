@@ -92,15 +92,14 @@ def pick_fractional_serving(food_row, target_cal):
     # If no portions, fallback to grams directly
     if not usable_portions:
         grams = round(target_cal / kcal_per_g)
-        return f"{grams} g", grams, target_cal
+        return f"{grams} g", grams, round(grams * kcal_per_g)
 
     # Try fractions from 0.25 to 4.0 for all usable portions
     best = None
     for _, row in pd.DataFrame(usable_portions).iterrows():
-        grams = row["portion_weight_g"]
-        kcal_per_portion = grams * kcal_per_g
-        for f in [i * 0.25 for i in range(1, 33)]:  # up to 8x
-            grams_est = f * grams
+        base_grams = row["portion_weight_g"]
+        for f in [i * 0.25 for i in range(1, 33)]:  # 0.25x to 8x
+            grams_est = f * base_grams
             kcal_est = grams_est * kcal_per_g
             diff = abs(kcal_est - target_cal)
             if best is None or diff < best[0]:
@@ -116,21 +115,19 @@ def pick_fractional_serving(food_row, target_cal):
     elif desc.startswith("one "):
         desc = desc[4:]
 
-    # Format fraction
+    # Format fraction + unit nicely
     if fraction.is_integer():
-        fraction_str = str(int(fraction))
+        amount_str = str(int(fraction))
     else:
-        fraction_str = str(fraction)
+        amount_str = str(fraction)
 
-    # Pluralize if needed
-    if fraction.is_integer() and fraction > 1 and not desc.endswith("s"):
-        desc += "s"
+    unit_text = f"{amount_str} {desc.strip()}"
 
-    # Final formatted unit
-    unit_text = f"{fraction_str} × {desc.strip()}"
+    # Handle pluralization
+    if fraction > 1 and not desc.endswith("s"):
+        unit_text += "s"
 
     return unit_text, round(total_grams), round(approx_cal)
-
 
 def serving_for_food(food_row):
     code = str(food_row["food_code"])
