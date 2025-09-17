@@ -152,9 +152,9 @@ if query or search_clicked:
 
     # Food search
     matches = []
-    if query or clicked:
-        matches = foods[
-            foods["main_food_description"].str.contains(query, case=False, na=False, regex=False)
+    if query or search_clicked:
+        matches = foods_df[
+            foods_df["main_food_description"].str.contains(query, case=False, na=False, regex=False)
         ]
 
     if not matches.empty:
