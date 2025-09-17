@@ -173,12 +173,9 @@ st.markdown(
     .stTextInput>div>div>input {
         border-radius: 8px 0 0 8px !important;
     }
-    div[data-testid="baseButton-secondary"] {
+    div[data-testid="stButton"] button {
         border-radius: 0 8px 8px 0 !important;
         margin-left: -8px;
-        height: 100%;
-    }
-    div[data-testid="baseButton-secondary"] > button {
         height: 100%;
         padding: 0.5em 0.75em;
     }
@@ -187,19 +184,16 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-with st.form(key="search_form"):
-    cols = st.columns([1, 0.15])
-    with cols[0]:
-        query = st.text_input(
-            "Search for a food",
-            value="",
-            key="food_search",
-            label_visibility="collapsed",
-        )
-    with cols[1]:
-        search_clicked = st.form_submit_button("🔍")
-
-# Now use query / search_clicked below
+cols = st.columns([1, 0.15])
+with cols[0]:
+    query = st.text_input(
+        "Search for a food",
+        value="",
+        key="food_search",
+        label_visibility="collapsed",
+    )
+with cols[1]:
+    search_clicked = st.button("🔍")
 
 if (query and query.strip()) or search_clicked:
     q = query.strip().lower()
