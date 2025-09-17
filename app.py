@@ -54,8 +54,8 @@ if st.session_state.date != datetime.date.today():
 COMMON_UNITS = [
     "cup", "cups", "tbsp", "tablespoon", "tablespoons",
     "tsp", "teaspoon", "teaspoons", "slice", "slices",
-    "piece", "pieces", "package", "can", "bottle", "link",
-    "patty", "bar", "cookie", "egg", "container", "loaf",
+    "piece", "pieces", "can", "bottle", "link",
+    "patty", "bar", "cookie", "egg", "loaf",
     "bun", "muffin", "cake", "donut", "taco", "sandwich",
     "small", "medium", "large"
 ]
@@ -71,7 +71,8 @@ BAD_PHRASES = [
     "per cup of hot cereal",
     "100 calorie",
     "package",
-    "serving"
+    "serving", 
+    "container"
 ]
 
 def _fmt_decimal(x):
