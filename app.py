@@ -219,6 +219,8 @@ with col2:
     )
 
 # --- Search bar with inline button (mobile/desktop safe, single version) ---
+st.subheader("Food Search")
+
 st.markdown(
     """
     <style>
