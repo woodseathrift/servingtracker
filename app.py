@@ -74,82 +74,6 @@ BAD_PHRASES = [
     "serving"
 ]
 
-import streamlit as st
-import pandas as pd
-import datetime
-import re
-
-# ------------------- Load Food Data -------------------
-@st.cache_data
-def load_data():
-    foods_df = pd.read_csv("2017-2018 FNDDS At A Glance - Foods and Beverages.csv", skiprows=1)
-    nutrients_df = pd.read_csv("2017-2018 FNDDS At A Glance - FNDDS Nutrient Values.csv", skiprows=1)
-    portions_df = pd.read_csv("2017-2018 FNDDS At A Glance - Portions and Weights.csv", skiprows=1)
-
-    # Normalize column names
-    for df in [foods_df, nutrients_df, portions_df]:
-        df.columns = (
-            df.columns.str.strip()
-            .str.lower()
-            .str.replace(" ", "_")
-            .str.replace(r"[()]", "", regex=True)
-        )
-
-    return foods_df, nutrients_df, portions_df
-
-
-# Unpack correctly
-foods_df, nutrients_df, portions_df = load_data()
-
-# ------------------- Initialize State -------------------
-if "energy_servings" not in st.session_state:
-    st.session_state.energy_servings = 0.0
-if "nutrient_servings" not in st.session_state:
-    st.session_state.nutrient_servings = 0.0
-if "date" not in st.session_state:
-    st.session_state.date = datetime.date.today()
-if "selected_foods" not in st.session_state:
-    st.session_state.selected_foods = []
-if "clear_search" not in st.session_state:
-    st.session_state.clear_search = False
-if "food_search" not in st.session_state:
-    st.session_state.food_search = ""
-if "food_choice" not in st.session_state:
-    st.session_state.food_choice = "-- choose a food --"
-if "amt_choice" not in st.session_state:
-    st.session_state.amt_choice = 1
-
-# reset daily
-if st.session_state.date != datetime.date.today():
-    st.session_state.energy_servings = 0.0
-    st.session_state.nutrient_servings = 0.0
-    st.session_state.date = datetime.date.today()
-    st.session_state.selected_foods = []
-
-# ------------------- Serving Picker -------------------
-COMMON_UNITS = [
-    "cup", "cups", "tbsp", "tablespoon", "tablespoons",
-    "tsp", "teaspoon", "teaspoons", "slice", "slices",
-    "piece", "pieces", "package", "can", "bottle", "link",
-    "patty", "bar", "cookie", "egg", "container", "loaf",
-    "bun", "muffin", "cake", "donut", "taco", "sandwich",
-    "small", "medium", "large"
-]
-
-BAD_PHRASES = [
-    "guideline amount", 
-    "as consumed", 
-    "recipe", 
-    "per 100", 
-    "added", 
-    "on cereal", 
-    "with milk", 
-    "per cup of hot cereal",
-    "100 calorie",
-    "package",
-    "serving"
-]
-
 def pick_fractional_serving(food_row, target_cal):
     kcal_row = nutrients_df[nutrients_df["food_code"] == food_row["food_code"]]
     if kcal_row.empty:
@@ -157,7 +81,6 @@ def pick_fractional_serving(food_row, target_cal):
     kcal_per_100g = kcal_row.iloc[0]["energy_kcal"]
     kcal_per_g = kcal_per_100g / 100
 
-    # Get all usable portions
     portion_rows = portions_df[portions_df["food_code"] == food_row["food_code"]]
     usable_portions = []
     for _, row in portion_rows.iterrows():
@@ -165,40 +88,27 @@ def pick_fractional_serving(food_row, target_cal):
         if any(u in desc for u in COMMON_UNITS) and not any(bad in desc for bad in BAD_PHRASES):
             usable_portions.append(row)
 
-    # If no portions, fallback to grams
     if not usable_portions:
         grams = round(target_cal / kcal_per_g)
-        return f"{grams} g (~{target_cal} kcal)", grams, target_cal
+        return "gram", grams, grams * kcal_per_g  # per-unit
 
-    # Try all fractions for all usable portions, pick closest kcal
     best = None
     for _, row in pd.DataFrame(usable_portions).iterrows():
         grams = row["portion_weight_g"]
         kcal_per_portion = grams * kcal_per_g
-        for f in [i * 0.25 for i in range(1, 17)]:  # 0.25 to 4.0
+        for f in [i * 0.25 for i in range(1, 17)]:
             kcal_est = f * kcal_per_portion
             diff = abs(kcal_est - target_cal)
             if best is None or diff < best[0]:
-                best = (diff, row, f, kcal_per_portion, grams, kcal_est)
+                best = (diff, row, f, kcal_per_portion, grams)
 
-    # Use best option
-    _, base, factor, kcal_per_portion, grams, approx_cal = best
+    _, base, factor, kcal_per_portion, grams = best
 
-    # --- Format serving text cleanly ---
-    desc = str(base["portion_description"]).lower().strip()
-    # Remove leading numbers from USDA desc (e.g. "0.25 cup" -> "cup")
-    desc = re.sub(r"^[\d\s\/\.]+", "", desc).strip()
+    # Clean up desc (remove leading numbers)
+    desc = re.sub(r"^[\d\s\/\.]+", "", str(base["portion_description"]).lower().strip())
 
-    total_grams = round(factor * grams)
-    approx_cal = round(approx_cal)
-
-    # Build unit text in decimal style
-    if factor.is_integer():
-        unit_text = f"{int(factor)} {desc}"
-    else:
-        unit_text = f"{factor:.2f}".rstrip("0").rstrip(".") + f" {desc}"
-
-    return unit_text, total_grams, approx_cal
+    # Return *per-unit* amounts
+    return desc, grams, kcal_per_portion
 
 def serving_for_food(food_row):
     code = str(food_row["food_code"])
@@ -301,7 +211,7 @@ if (query and query.strip()) or search_clicked:
             code = int(choice.split("#")[-1].strip(")"))
             food_row = foods_df[foods_df["food_code"] == code].iloc[0]
 
-            density, unit_desc, base_grams, base_kcal = serving_for_food(food_row)
+            density, unit_desc, grams_per_unit, kcal_per_unit = serving_for_food(food_row)
             color = "#330000" if density == "Energy-dense" else "#003300"
 
             amt = st.selectbox(
@@ -311,16 +221,14 @@ if (query and query.strip()) or search_clicked:
                 key="amt_choice"
             )
 
-            total_grams = round(base_grams * amt)
-            total_kcal = round(base_kcal * amt)
+            total_grams = round(grams_per_unit * amt)
+            total_kcal = round(kcal_per_unit * amt)
 
-            unit_adj = unit_desc
-            if amt > 1 and not unit_desc.endswith("s"):
-                unit_adj += "s"
-
+            unit_adj = unit_desc if amt == 1 else unit_desc + "s"
             amt_str = str(int(amt)) if amt.is_integer() else str(amt)
 
             display_serving = f"{amt_str} {unit_adj} (≈{total_grams} g, ~{total_kcal} kcal)"
+
 
             st.markdown(
                 f"<div style='background-color:{color}; padding:8px; border-radius:8px;'>"
