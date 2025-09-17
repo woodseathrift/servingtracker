@@ -166,36 +166,23 @@ with col2:
         unsafe_allow_html=True,
     )
 
-# --- Search bar with inline button (mobile/desktop safe) ---
+# --- Search bar with inline button (mobile/desktop safe, single version) ---
 st.markdown(
     """
     <style>
-    .search-container {
-        display: flex;
-        align-items: center;
-        max-width: 600px;
-        margin-bottom: 1em;
+    .stTextInput>div>div>input {
+        border-radius: 8px 0 0 8px !important;
     }
-    .search-container input {
-        flex: 1;
-        padding: 0.5em;
-        border: 1px solid #ccc;
-        border-radius: 8px 0 0 8px;
-        outline: none;
+    div[data-testid="baseButton-secondary"] {
+        border-radius: 0 8px 8px 0 !important;
+        margin-left: -8px;
+        height: 100%;
     }
-    .search-container button {
-        background: #eee;
-        border: 1px solid #ccc;
-        border-left: none;
+    div[data-testid="baseButton-secondary"] > button {
+        height: 100%;
         padding: 0.5em 0.75em;
-        border-radius: 0 8px 8px 0;
-        cursor: pointer;
     }
     </style>
-    <form action="#" method="get" class="search-container">
-        <input type="text" name="food_search" placeholder="Search for a food" value="">
-        <button type="submit">🔍</button>
-    </form>
     """,
     unsafe_allow_html=True,
 )
@@ -203,9 +190,16 @@ st.markdown(
 with st.form(key="search_form"):
     cols = st.columns([1, 0.15])
     with cols[0]:
-        query = st.text_input("Search for a food", value="", key="food_search", label_visibility="collapsed")
+        query = st.text_input(
+            "Search for a food",
+            value="",
+            key="food_search",
+            label_visibility="collapsed",
+        )
     with cols[1]:
         search_clicked = st.form_submit_button("🔍")
+
+# Now use query / search_clicked below
 
 if (query and query.strip()) or search_clicked:
     q = query.strip().lower()
