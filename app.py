@@ -219,7 +219,7 @@ with col2:
     )
 
 # --- Search bar with inline button (mobile/desktop safe, single version) ---
-st.subheader("Food Search")
+
 
 st.markdown(
     """
@@ -249,6 +249,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.subheader("Food Search")
 with st.container():
     st.markdown('<div class="search-wrapper">', unsafe_allow_html=True)
     col1, col2 = st.columns([1, 0.15], gap="small")
