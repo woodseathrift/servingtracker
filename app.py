@@ -153,9 +153,13 @@ if query or search_clicked:
     # Food search
     matches = []
     if query or search_clicked:
-        matches = foods_df[
-            foods_df["main_food_description"].str.contains(query, case=False, na=False, regex=False)
-        ]
+    q = query.strip().lower()
+
+    # --- Word-based search ---
+    words = q.split()
+    matches = foods_df.copy()
+    for w in words:
+        matches = matches[matches["main_food_description"].str.contains(w, case=False, na=False)]
 
     if not matches.empty:
         options = ["-- choose a food --"] + [
