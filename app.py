@@ -18,9 +18,9 @@ def load_data():
             .str.replace(" ", "_")
             .str.replace(r"[()]", "", regex=True)
         )
+
     return foods_df, nutrients_df, portions_df
 
-# Unpack correctly
 foods_df, nutrients_df, portions_df = load_data()
 
 # ------------------- Initialize State -------------------
@@ -61,18 +61,9 @@ COMMON_UNITS = [
 ]
 
 BAD_PHRASES = [
-    "guideline amount",
-    "as consumed",
-    "recipe",
-    "per 100",
-    "added",
-    "on cereal",
-    "with milk",
-    "per cup of hot cereal",
-    "100 calorie",
-    "package",
-    "serving",
-    "container"
+    "guideline amount", "as consumed", "recipe", "per 100",
+    "added", "on cereal", "with milk", "per cup of hot cereal",
+    "100 calorie", "package", "serving", "container"
 ]
 
 def _fmt_decimal(x):
@@ -155,22 +146,27 @@ def add_serving(density_type, amount=1.0):
         if st.session_state.nutrient_servings < 0:
             st.session_state.nutrient_servings = 0
 
-# ------------------- Global Styles -------------------
+# ------------------- CSS -------------------
 st.markdown(
     """
     <style>
-    /* Reduce title size on small screens */
     @media (max-width: 600px) {
         h1 {
             font-size: 1.5rem !important;
         }
     }
-    /* Force two-column layout everywhere */
+
     .twocol {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 1rem;
         align-items: start;
+    }
+
+    /* make streamlit containers behave like grid items */
+    .twocol > div {
+        margin: 0 !important;
+        width: 100% !important;
     }
     </style>
     """,
@@ -234,7 +230,7 @@ with st.container():
         search_clicked = st.button("🔍")
     st.markdown('</div>', unsafe_allow_html=True)
 
-if ("query" in locals() and query and query.strip()) or ("search_clicked" in locals() and search_clicked):
+if ("query" in locals() and (query and query.strip())) or ("search_clicked" in locals() and search_clicked):
     q = query.strip().lower()
     words = q.split()
     matches = foods_df.copy()
@@ -304,22 +300,12 @@ if ("query" in locals() and query and query.strip()) or ("search_clicked" in loc
 st.subheader("Quick Add")
 st.markdown('<div class="twocol">', unsafe_allow_html=True)
 with st.container():
-    amt = st.selectbox(
-        "Serving increment",
-        [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
-        index=3,
-        key="energy_inc",
-    )
+    amt = st.selectbox("Serving increment", [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], index=3, key="energy_inc")
     if st.button("⚡ Add Energy ⚡"):
         add_serving("Energy-dense", amt)
         st.rerun()
 with st.container():
-    amt = st.selectbox(
-        "Serving increment ",
-        [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
-        index=3,
-        key="nutrient_inc",
-    )
+    amt = st.selectbox("Serving increment ", [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], index=3, key="nutrient_inc")
     if st.button("🌱 Add Nutrient 🌱"):
         add_serving("Nutrient-dense", amt)
         st.rerun()
@@ -329,22 +315,12 @@ st.markdown('</div>', unsafe_allow_html=True)
 st.subheader("Quick Subtract")
 st.markdown('<div class="twocol">', unsafe_allow_html=True)
 with st.container():
-    amt = st.selectbox(
-        "Serving decrement",
-        [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
-        index=3,
-        key="energy_dec",
-    )
+    amt = st.selectbox("Serving decrement", [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], index=3, key="energy_dec")
     if st.button("⚡ Subtract Energy ⚡"):
         add_serving("Energy-dense", -amt)
         st.rerun()
 with st.container():
-    amt = st.selectbox(
-        "Serving decrement ",
-        [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
-        index=3,
-        key="nutrient_dec",
-    )
+    amt = st.selectbox("Serving decrement ", [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], index=3, key="nutrient_dec")
     if st.button("🌱 Subtract Nutrient 🌱"):
         add_serving("Nutrient-dense", -amt)
         st.rerun()
