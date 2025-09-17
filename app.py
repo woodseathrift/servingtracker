@@ -113,11 +113,8 @@ def pick_fractional_serving(food_row, target_cal):
     approx_cal = round(approx_cal)
 
     # Return as: formatted text, base grams for 1.0 of that base unit, base kcal for 1.0 of that base unit
-    # We'll use 'fraction' as the base unit quantity and store base_grams/base_kcal per (fraction * portion)
-    # To keep minimal changes for the rest of your code, return base_grams and base_kcal that correspond to the chosen fraction (so multiplying by amt is correct)
     base_grams_for_fraction = total_grams
     base_kcal_for_fraction = approx_cal
-    # unit text to use when multiplying: show the unit (without the fraction prefix)
     unit_text = desc.strip()
 
     return unit_text, base_grams_for_fraction, base_kcal_for_fraction
@@ -150,16 +147,11 @@ with col2:
     search_clicked = st.button("🔍 Search")
 
 if query or search_clicked:
-    # normalize query and split into tokens (keeps '%' etc.)
     q = query.strip().lower()
-    tokens = re.findall(r'\S+', q)
-
-    # normalized descriptions (safe for NaNs)
     desc_series = foods_df['main_food_description'].fillna('').str.lower()
 
-    # match if ALL tokens appear anywhere in the description (order-independent)
-    mask = desc_series.apply(lambda s: all(tok in s for tok in tokens))
-    matches = foods_df[mask]
+    # ✅ Option 1 fix: direct contains search, regex disabled
+    matches = foods_df[desc_series.str.contains(q, case=False, na=False, regex=False)]
 
     if not matches.empty:
         options = ["-- choose a food --"] + [
@@ -176,7 +168,6 @@ if query or search_clicked:
             density, unit_desc, base_grams, base_kcal = serving_for_food(food_row)
             color = "#330000" if density == "Energy-dense" else "#003300"
 
-            # Apply user amount choice — MUST be inside the block where base_grams/base_kcal exist
             amt = st.selectbox(
                 "Add servings",
                 [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
@@ -187,7 +178,6 @@ if query or search_clicked:
             total_grams = round(base_grams * amt)
             total_kcal = round(base_kcal * amt)
 
-            # Pluralization
             unit_adj = unit_desc
             if amt > 1 and not unit_desc.endswith("s"):
                 unit_adj += "s"
@@ -211,7 +201,6 @@ if query or search_clicked:
                     "amt": amt,
                 })
 
-                # safe reset of widget state
                 for k in ["food_search", "food_choice", "amt_choice"]:
                     if k in st.session_state:
                         del st.session_state[k]
