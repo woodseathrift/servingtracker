@@ -309,14 +309,38 @@ with col1:
     )
     if st.button("⚡ Add Energy ⚡"):
         add_serving("Energy-dense", amt)
-        st.rerun()   # <- force UI refresh immediately
+        st.rerun()
 with col2:
     amt = st.selectbox(
-        "Serving increment",
+        "Serving increment ",
         [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
         index=3,
         key="nutrient_inc",
     )
     if st.button("🌱 Add Nutrient 🌱"):
         add_serving("Nutrient-dense", amt)
-        st.rerun()   # <- force UI refresh immediately
+        st.rerun()
+
+# ------------------- Manual subtract section -------------------
+st.subheader("Quick Subtract")
+col1, col2 = st.columns(2)
+with col1:
+    amt = st.selectbox(
+        "Serving decrement",
+        [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+        index=3,
+        key="energy_dec",
+    )
+    if st.button("⚡ Subtract Energy ⚡"):
+        add_serving("Energy-dense", -amt)
+        st.rerun()
+with col2:
+    amt = st.selectbox(
+        "Serving decrement ",
+        [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+        index=3,
+        key="nutrient_dec",
+    )
+    if st.button("🌱 Subtract Nutrient 🌱"):
+        add_serving("Nutrient-dense", -amt)
+        st.rerun()
