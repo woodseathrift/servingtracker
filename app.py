@@ -339,7 +339,7 @@ st.subheader("Quick Add")
 col1, col2 = st.columns(2)
 with col1:
     amt = st.selectbox(
-        "Serving increment",
+        "Serving amount",
         [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
         index=3,
         key="energy_inc",
@@ -349,7 +349,7 @@ with col1:
         st.rerun()
 with col2:
     amt = st.selectbox(
-        "Serving increment ",
+        "Serving amount ",
         [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
         index=3,
         key="nutrient_inc",
@@ -363,22 +363,22 @@ st.subheader("Quick Subtract")
 col1, col2 = st.columns(2)
 with col1:
     amt = st.selectbox(
-        "Serving decrement",
+        "Serving amount",
         [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
         index=3,
         key="energy_dec",
     )
-    if st.button("⚡ Subtract Energy ⚡"):
+    if st.button("⚡ Remove Energy ⚡"):
         add_serving("Energy-dense", -amt)
         st.rerun()
 with col2:
     amt = st.selectbox(
-        "Serving decrement ",
+        "Serving amount ",
         [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
         index=3,
         key="nutrient_dec",
     )
-    if st.button("🌱 Subtract Nutrient 🌱"):
+    if st.button("🌱 Remove Nutrient 🌱"):
         add_serving("Nutrient-dense", -amt)
         st.rerun()
 
