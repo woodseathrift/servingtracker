@@ -270,22 +270,22 @@ if (query and query.strip()) or search_clicked:
             total_grams = round(base_grams * amt)
             total_kcal = round(base_kcal * amt)
 
-# display total units in natural decimal form: total_units = fraction * amt
-if unit == "g":
-    # fallback grams display
-    if st.session_state.show_calories:
-        display_serving = f"{total_grams} g (~{total_kcal} kcal)"
-    else:
-        display_serving = f"{total_grams} g"
-else:
-    total_units = fraction * amt
-    total_units_str = _fmt_decimal(total_units)
-    # pluralize unit when >1
-    unit_adj = unit if (float(total_units) == 1) else (unit + "s" if not unit.endswith("s") else unit)
-    if st.session_state.show_calories:
-        display_serving = f"{total_units_str} {unit_adj} (≈{total_grams} g, ~{total_kcal} kcal)"
-    else:
-        display_serving = f"{total_units_str} {unit_adj} (≈{total_grams} g)"
+            # display total units in natural decimal form: total_units = fraction * amt
+            if unit == "g":
+                # fallback grams display
+                if st.session_state.show_calories:
+                    display_serving = f"{total_grams} g (~{total_kcal} kcal)"
+                else:
+                    display_serving = f"{total_grams} g"
+            else:
+                total_units = fraction * amt
+                total_units_str = _fmt_decimal(total_units)
+                # pluralize unit when >1
+                unit_adj = unit if (float(total_units) == 1) else (unit + "s" if not unit.endswith("s") else unit)
+                if st.session_state.show_calories:
+                    display_serving = f"{total_units_str} {unit_adj} (≈{total_grams} g, ~{total_kcal} kcal)"
+                else:
+                    display_serving = f"{total_units_str} {unit_adj} (≈{total_grams} g)"
 
             st.markdown(
                 f"<div style='background-color:{color}; padding:8px; border-radius:8px;'>"
