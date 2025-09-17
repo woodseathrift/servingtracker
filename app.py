@@ -166,7 +166,9 @@ if query or search_clicked:
     for w in words:
         matches = matches[matches["main_food_description"].str.contains(w, case=False, na=False)]
 
-    if not matches.empty:
+    if matches.empty:
+        st.warning("⚠️ No foods found. Try a different search term.")
+    else:
         options = ["-- choose a food --"] + [
             f'{row["main_food_description"]} (#{row["food_code"]})'
             for _, row in matches.iterrows()
