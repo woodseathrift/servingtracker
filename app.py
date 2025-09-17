@@ -109,7 +109,7 @@ def pick_fractional_serving(food_row, target_cal):
     _, base_row, fraction, total_grams, approx_cal = best
     desc = str(base_row["portion_description"]).lower()
 
-    # Clean description
+    # Clean description: strip any leading "1 " or "one "
     if desc.startswith("1 "):
         desc = desc[2:]
     elif desc.startswith("one "):
@@ -128,6 +128,7 @@ def pick_fractional_serving(food_row, target_cal):
         unit_text += "s"
 
     return unit_text, round(total_grams), round(approx_cal)
+
 
 def serving_for_food(food_row):
     code = str(food_row["food_code"])
