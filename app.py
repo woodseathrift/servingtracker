@@ -150,6 +150,22 @@ def add_serving(density_type, amount=1.0):
 # ------------------- UI -------------------
 st.title("🥗 Serving Tracker")
 
+# ------------------- Show tally -------------------
+st.subheader("Tally")
+col1, col2 = st.columns(2)
+with col1:
+    st.markdown(
+        f"<div style='background-color:#FF6666; color:black; padding:10px; border-radius:8px;'>"
+        f"⚡ Energy-dense servings: <b>{st.session_state.energy_servings:.2f}</b></div>",
+        unsafe_allow_html=True,
+    )
+with col2:
+    st.markdown(
+        f"<div style='background-color:#66FF66; color:black; padding:10px; border-radius:8px;'>"
+        f"🌱 Nutrient-dense servings: <b>{st.session_state.nutrient_servings:.2f}</b></div>",
+        unsafe_allow_html=True,
+    )
+
 # --- Search box with button ---
 col1, col2 = st.columns([4, 1])  # wide input, narrow button
 with col1:
@@ -234,18 +250,3 @@ with col2:
     if st.button("🌱 Add Nutrient 🌱"):
         add_serving("Nutrient-dense", amt)
 
-# ------------------- Show tally -------------------
-st.subheader("Tally")
-col1, col2 = st.columns(2)
-with col1:
-    st.markdown(
-        f"<div style='background-color:#FF6666; color:black; padding:10px; border-radius:8px;'>"
-        f"⚡ Energy-dense servings: <b>{st.session_state.energy_servings:.2f}</b></div>",
-        unsafe_allow_html=True,
-    )
-with col2:
-    st.markdown(
-        f"<div style='background-color:#66FF66; color:black; padding:10px; border-radius:8px;'>"
-        f"🌱 Nutrient-dense servings: <b>{st.session_state.nutrient_servings:.2f}</b></div>",
-        unsafe_allow_html=True,
-    )
