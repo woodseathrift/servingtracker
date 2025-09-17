@@ -173,16 +173,16 @@ with col2:
 st.markdown(
     """
     <style>
-    .search-row {
+    .search-wrapper {
         display: flex;
         align-items: stretch;
         max-width: 600px;
         margin-bottom: 1em;
     }
-    .search-row > div:first-child {
+    .search-wrapper > div:first-child {
         flex-grow: 1;
     }
-    .search-row > div:last-child {
+    .search-wrapper > div:last-child {
         flex-shrink: 0;
     }
     div[data-testid="stTextInput"] > div > div > input {
@@ -198,16 +198,20 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-search_cols = st.columns([1, 0.15], gap="small")
-with search_cols[0]:
-    query = st.text_input(
-        "Search for a food",
-        value="",
-        key="food_search",
-        label_visibility="collapsed",
-    )
-with search_cols[1]:
-    search_clicked = st.button("🔍")
+with st.container():
+    st.markdown('<div class="search-wrapper">', unsafe_allow_html=True)
+    col1, col2 = st.columns([1, 0.15], gap="small")
+    with col1:
+        query = st.text_input(
+            "Search for a food",
+            value="",
+            key="food_search",
+            label_visibility="collapsed",
+        )
+    with col2:
+        search_clicked = st.button("🔍")
+    st.markdown('</div>', unsafe_allow_html=True)
+
     
 if (query and query.strip()) or search_clicked:
     q = query.strip().lower()
