@@ -301,10 +301,22 @@ if (query and query.strip()) or search_clicked:
 st.subheader("Quick Add")
 col1, col2 = st.columns(2)
 with col1:
-    amt = st.selectbox("Serving increment", [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], index=3, key="energy_inc")
+    amt = st.selectbox(
+        "Serving increment",
+        [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+        index=3,
+        key="energy_inc",
+    )
     if st.button("⚡ Add Energy ⚡"):
         add_serving("Energy-dense", amt)
+        st.rerun()   # <- force UI refresh immediately
 with col2:
-    amt = st.selectbox("Serving increment", [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], index=3, key="nutrient_inc")
+    amt = st.selectbox(
+        "Serving increment",
+        [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+        index=3,
+        key="nutrient_inc",
+    )
     if st.button("🌱 Add Nutrient 🌱"):
         add_serving("Nutrient-dense", amt)
+        st.rerun()   # <- force UI refresh immediately
