@@ -61,64 +61,102 @@ COMMON_UNITS = [
 ]
 
 BAD_PHRASES = [
-    "guideline amount", 
-    "as consumed", 
-    "recipe", 
-    "per 100", 
-    "added", 
-    "on cereal", 
-    "with milk", 
+    "guideline amount",
+    "as consumed",
+    "recipe",
+    "per 100",
+    "added",
+    "on cereal",
+    "with milk",
     "per cup of hot cereal",
     "100 calorie",
     "package",
     "serving"
 ]
 
+def _fmt_decimal(x):
+    # format numbers like 1.0 -> "1", 0.25 -> "0.25", 1.25 -> "1.25"
+    if float(x).is_integer():
+        return str(int(x))
+    return f"{x:.2f}".rstrip("0").rstrip(".")
+
 def pick_fractional_serving(food_row, target_cal):
+    """
+    Return (fraction, unit, grams_per_serving, kcal_per_serving)
+    - fraction: numeric amount of `unit` in *one serving* (e.g. 0.25)
+      if unit == 'g', fraction is grams (integer)
+    - unit: string like 'cup' or 'g'
+    - grams_per_serving: integer grams in one serving (rounded)
+    - kcal_per_serving: integer kcal in one serving (rounded)
+    The chosen serving is the fraction (0.25 step) of one of the known portions
+    that gives kcal closest to target_cal.
+    """
     kcal_row = nutrients_df[nutrients_df["food_code"] == food_row["food_code"]]
     if kcal_row.empty:
-        return "No kcal data", 0, 0
-    kcal_per_100g = kcal_row.iloc[0]["energy_kcal"]
-    kcal_per_g = kcal_per_100g / 100
+        return 1, "g", 0, 0  # fallback but handled below
 
+    kcal_per_100g = kcal_row.iloc[0]["energy_kcal"]
+    if pd.isna(kcal_per_100g) or kcal_per_100g == 0:
+        return 1, "g", 0, 0
+    kcal_per_g = kcal_per_100g / 100.0
+
+    # get portion rows for this food
     portion_rows = portions_df[portions_df["food_code"] == food_row["food_code"]]
     usable_portions = []
     for _, row in portion_rows.iterrows():
-        desc = str(row["portion_description"]).lower()
+        desc = str(row.get("portion_description", "")).lower()
         if any(u in desc for u in COMMON_UNITS) and not any(bad in desc for bad in BAD_PHRASES):
             usable_portions.append(row)
 
+    # If no suitable common-unit portions, fallback to grams such that 1 serving ~ target_cal
     if not usable_portions:
-        grams = round(target_cal / kcal_per_g)
-        return "gram", grams, grams * kcal_per_g  # per-unit
+        grams_for_target = max(1, round(target_cal / kcal_per_g))
+        kcal_for_target = round(grams_for_target * kcal_per_g)
+        return grams_for_target, "g", grams_for_target, kcal_for_target
 
+    # try all fractions 0.25..4.0 across usable_portions, pick closest kcal to target
     best = None
     for _, row in pd.DataFrame(usable_portions).iterrows():
-        grams = row["portion_weight_g"]
-        kcal_per_portion = grams * kcal_per_g
+        portion_grams = row["portion_weight_g"]
+        kcal_per_portion = portion_grams * kcal_per_g
+        # test fraction multipliers (0.25 .. 4.0)
         for f in [i * 0.25 for i in range(1, 17)]:
             kcal_est = f * kcal_per_portion
             diff = abs(kcal_est - target_cal)
             if best is None or diff < best[0]:
-                best = (diff, row, f, kcal_per_portion, grams)
+                best = (diff, row, f, kcal_per_portion, portion_grams, kcal_est)
 
-    _, base, factor, kcal_per_portion, grams = best
+    if best is None:
+        # extreme fallback
+        grams_for_target = max(1, round(target_cal / kcal_per_g))
+        kcal_for_target = round(grams_for_target * kcal_per_g)
+        return grams_for_target, "g", grams_for_target, kcal_for_target
 
-    # Clean up desc (remove leading numbers)
-    desc = re.sub(r"^[\d\s\/\.]+", "", str(base["portion_description"]).lower().strip())
+    _, chosen_row, fraction, kcal_per_portion, part_grams, kcal_est = best
 
-    # Return *per-unit* amounts
-    return desc, grams, kcal_per_portion
+    # clean unit name (strip leading numeric counts like "1 ", "0.25 ", etc.)
+    raw_desc = str(chosen_row.get("portion_description", "")).lower().strip()
+    # remove leading numeric tokens (numbers, fractions, decimals)
+    unit = re.sub(r"^[\d\s\/\.]+", "", raw_desc).strip()
+    if unit == "":
+        unit = "unit"
+
+    grams_per_serving = max(1, round(fraction * part_grams))
+    kcal_per_serving = max(0, round(kcal_est))
+
+    # if the "unit" we extracted is just a weight word like "g", handle it (rare)
+    # Return: fraction (numeric count of unit per serving), unit string, grams_per_serving, kcal_per_serving
+    return fraction, unit, grams_per_serving, kcal_per_serving
 
 def serving_for_food(food_row):
     code = str(food_row["food_code"])
     if code.startswith(("61", "63", "67", "72", "73", "74", "75", "76", "78")):
         density = "Nutrient-dense"
-        unit_desc, grams, kcal = pick_fractional_serving(food_row, 50)
+        fraction, unit, grams, kcal = pick_fractional_serving(food_row, 50)
     else:
         density = "Energy-dense"
-        unit_desc, grams, kcal = pick_fractional_serving(food_row, 100)
-    return density, unit_desc, grams, kcal
+        fraction, unit, grams, kcal = pick_fractional_serving(food_row, 100)
+    return density, fraction, unit, grams, kcal
 
 # ------------------- Add Servings -------------------
 def add_serving(density_type, amount=1.0):
@@ -189,7 +227,6 @@ with st.container():
         search_clicked = st.button("🔍")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    
 if (query and query.strip()) or search_clicked:
     q = query.strip().lower()
     # --- Word-based search ---
@@ -211,7 +248,7 @@ if (query and query.strip()) or search_clicked:
             code = int(choice.split("#")[-1].strip(")"))
             food_row = foods_df[foods_df["food_code"] == code].iloc[0]
 
-            density, unit_desc, grams_per_unit, kcal_per_unit = serving_for_food(food_row)
+            density, fraction, unit, base_grams, base_kcal = serving_for_food(food_row)
             color = "#330000" if density == "Energy-dense" else "#003300"
 
             amt = st.selectbox(
@@ -221,14 +258,20 @@ if (query and query.strip()) or search_clicked:
                 key="amt_choice"
             )
 
-            total_grams = round(grams_per_unit * amt)
-            total_kcal = round(kcal_per_unit * amt)
+            # total grams and kcal scale linearly from the chosen "one serving"
+            total_grams = round(base_grams * amt)
+            total_kcal = round(base_kcal * amt)
 
-            unit_adj = unit_desc if amt == 1 else unit_desc + "s"
-            amt_str = str(int(amt)) if amt.is_integer() else str(amt)
-
-            display_serving = f"{amt_str} {unit_adj} (≈{total_grams} g, ~{total_kcal} kcal)"
-
+            # display total units in natural decimal form: total_units = fraction * amt
+            if unit == "g":
+                # fallback grams display
+                display_serving = f"{total_grams} g (~{total_kcal} kcal)"
+            else:
+                total_units = fraction * amt
+                total_units_str = _fmt_decimal(total_units)
+                # pluralize unit when >1
+                unit_adj = unit if (float(total_units) == 1) else (unit + "s" if not unit.endswith("s") else unit)
+                display_serving = f"{total_units_str} {unit_adj} (≈{total_grams} g, ~{total_kcal} kcal)"
 
             st.markdown(
                 f"<div style='background-color:{color}; padding:8px; border-radius:8px;'>"
@@ -262,4 +305,3 @@ with col2:
     amt = st.selectbox("Serving increment", [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], index=3, key="nutrient_inc")
     if st.button("🌱 Add Nutrient 🌱"):
         add_serving("Nutrient-dense", amt)
-
