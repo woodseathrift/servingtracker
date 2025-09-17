@@ -185,17 +185,19 @@ st.markdown(
         }
     }
 
-    /* Force Streamlit columns to stay side by side even on narrow screens */
+    /* Force two equal columns on all screens without horizontal scroll */
     [data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
     }
-    [data-testid="stVerticalBlock"] {
+    [data-testid="stHorizontalBlock"] > div {
+        flex: 1 1 0% !important;
         min-width: 0 !important;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
 
 # ------------------- UI -------------------
 st.title("🥗 Serving Tracker")
