@@ -357,6 +357,8 @@ with col2:
         st.rerun()
 
 # ------------------- Calorie Toggle -------------------
+st.markdown("---")  # horizontal bar separator
+
 def _toggle_calories():
     st.session_state.show_calories = not st.session_state.get("show_calories", False)
     st.rerun()
