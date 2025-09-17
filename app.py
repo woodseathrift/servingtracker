@@ -166,29 +166,36 @@ with col2:
         unsafe_allow_html=True,
     )
 
-# --- Search box with inline button ---
+# --- Search bar with inline button (mobile/desktop safe) ---
 st.markdown(
     """
     <style>
-    div.stForm {
+    .search-container {
         display: flex;
         align-items: center;
         max-width: 600px;
+        margin-bottom: 1em;
     }
-    div.stForm > div:first-child {
+    .search-container input {
         flex: 1;
-    }
-    div.stForm input {
-        border-radius: 8px 0 0 8px !important;
-        border-right: none !important;
-    }
-    div.stForm button {
-        border-radius: 0 8px 8px 0 !important;
-        border-left: none !important;
-        min-width: 3em;
         padding: 0.5em;
+        border: 1px solid #ccc;
+        border-radius: 8px 0 0 8px;
+        outline: none;
+    }
+    .search-container button {
+        background: #eee;
+        border: 1px solid #ccc;
+        border-left: none;
+        padding: 0.5em 0.75em;
+        border-radius: 0 8px 8px 0;
+        cursor: pointer;
     }
     </style>
+    <form action="#" method="get" class="search-container">
+        <input type="text" name="food_search" placeholder="Search for a food" value="">
+        <button type="submit">🔍</button>
+    </form>
     """,
     unsafe_allow_html=True,
 )
