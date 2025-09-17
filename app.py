@@ -358,14 +358,14 @@ with col2:
 
 # ------------------- Calorie Toggle -------------------
 def _toggle_calories():
-    st.session_state.show_calories = not st.session_state.get("show_calories of foods while searching", False)
+    st.session_state.show_calories = not st.session_state.get("show_calories", False)
     st.rerun()
 
 if "show_calories" not in st.session_state:
     st.session_state.show_calories = False
 
 st.checkbox(
-    "Show calories",
+    "Show calories of foods while searching",
     value=st.session_state.show_calories,
     key="show_calories_checkbox",
     on_change=_toggle_calories,
