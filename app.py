@@ -81,26 +81,16 @@ def _fmt_decimal(x):
     return f"{x:.2f}".rstrip("0").rstrip(".")
 
 def pick_fractional_serving(food_row, target_cal):
-    """
-    Return (fraction, unit, grams_per_serving, kcal_per_serving)
-    - fraction: numeric amount of `unit` in *one serving* (e.g. 0.25)
-      if unit == 'g', fraction is grams (integer)
-    - unit: string like 'cup' or 'g'
-    - grams_per_serving: integer grams in one serving (rounded)
-    - kcal_per_serving: integer kcal in one serving (rounded)
-    The chosen serving is the fraction (0.25 step) of one of the known portions
-    that gives kcal closest to target_cal.
-    """
     kcal_row = nutrients_df[nutrients_df["food_code"] == food_row["food_code"]]
     if kcal_row.empty:
-        return 1, "g", 0, 0  # fallback but handled below
-
+        # no kcal info — fallback
+        return 1, "g", 0, 0
     kcal_per_100g = kcal_row.iloc[0]["energy_kcal"]
     if pd.isna(kcal_per_100g) or kcal_per_100g == 0:
         return 1, "g", 0, 0
     kcal_per_g = kcal_per_100g / 100.0
 
-    # get portion rows for this food
+    # gather usable portions (common named units, excluding bad phrases)
     portion_rows = portions_df[portions_df["food_code"] == food_row["food_code"]]
     usable_portions = []
     for _, row in portion_rows.iterrows():
@@ -108,35 +98,47 @@ def pick_fractional_serving(food_row, target_cal):
         if any(u in desc for u in COMMON_UNITS) and not any(bad in desc for bad in BAD_PHRASES):
             usable_portions.append(row)
 
-    # If no suitable common-unit portions, fallback to grams such that 1 serving ~ target_cal
+    # if no named unit portions, fallback to grams sized to hit target_cal
     if not usable_portions:
         grams_for_target = max(1, round(target_cal / kcal_per_g))
         kcal_for_target = round(grams_for_target * kcal_per_g)
         return grams_for_target, "g", grams_for_target, kcal_for_target
 
-    # try all fractions 0.25..4.0 across usable_portions, pick closest kcal to target
+    # test 0.25-step fractions from 0.25 to 4.0 for all usable portions, pick the best match
     best = None
     for _, row in pd.DataFrame(usable_portions).iterrows():
-        portion_grams = row["portion_weight_g"]
-        kcal_per_portion = portion_grams * kcal_per_g
-        # test fraction multipliers (0.25 .. 4.0)
+        part_grams = row["portion_weight_g"]
+        kcal_per_portion = part_grams * kcal_per_g
+        # check 0.25..4.0
         for f in [i * 0.25 for i in range(1, 17)]:
             kcal_est = f * kcal_per_portion
             diff = abs(kcal_est - target_cal)
             if best is None or diff < best[0]:
-                best = (diff, row, f, kcal_per_portion, portion_grams, kcal_est)
+                best = (diff, row, f, kcal_per_portion, part_grams, kcal_est)
 
+    # Defensive fallback if nothing found
     if best is None:
-        # extreme fallback
         grams_for_target = max(1, round(target_cal / kcal_per_g))
         kcal_for_target = round(grams_for_target * kcal_per_g)
         return grams_for_target, "g", grams_for_target, kcal_for_target
 
     _, chosen_row, fraction, kcal_per_portion, part_grams, kcal_est = best
 
-    # clean unit name (strip leading numeric counts like "1 ", "0.25 ", etc.)
+    # compute exact fraction that would match the target for this portion
+    exact_fraction = target_cal / kcal_per_portion if kcal_per_portion > 0 else float("inf")
+
+    # If exact_fraction is < 0.25 (i.e., we'd need less than 0.25 of this unit),
+    # or the resulting kcal for the chosen rounded fraction is outside the acceptable window (±20%),
+    # then FALL BACK to grams so one serving ~ target_cal.
+    approx_cal = round(kcal_est)
+    if exact_fraction < 0.25 or (approx_cal < 0.8 * target_cal or approx_cal > 1.2 * target_cal):
+        grams_for_target = max(1, round(target_cal / kcal_per_g))
+        kcal_for_target = round(grams_for_target * kcal_per_g)
+        return grams_for_target, "g", grams_for_target, kcal_for_target
+
+    # Otherwise format the chosen unit cleanly:
     raw_desc = str(chosen_row.get("portion_description", "")).lower().strip()
-    # remove leading numeric tokens (numbers, fractions, decimals)
+    # strip any leading numeric tokens like "1 ", "0.25 ", "one " etc.
     unit = re.sub(r"^[\d\s\/\.]+", "", raw_desc).strip()
     if unit == "":
         unit = "unit"
@@ -144,9 +146,10 @@ def pick_fractional_serving(food_row, target_cal):
     grams_per_serving = max(1, round(fraction * part_grams))
     kcal_per_serving = max(0, round(kcal_est))
 
-    # if the "unit" we extracted is just a weight word like "g", handle it (rare)
-    # Return: fraction (numeric count of unit per serving), unit string, grams_per_serving, kcal_per_serving
+    # return: fraction (numeric amount of unit per one serving), unit (e.g. 'cup' or 'g'),
+    # grams for that one serving, kcal for that one serving
     return fraction, unit, grams_per_serving, kcal_per_serving
+
 
 def serving_for_food(food_row):
     code = str(food_row["food_code"])
