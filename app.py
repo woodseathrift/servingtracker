@@ -165,8 +165,12 @@ def serving_for_food(food_row):
 def add_serving(density_type, amount=1.0):
     if density_type == "Energy-dense":
         st.session_state.energy_servings += amount
+        if st.session_state.energy_servings < 0:
+            st.session_state.energy_servings = 0
     else:
         st.session_state.nutrient_servings += amount
+        if st.session_state.nutrient_servings < 0:
+            st.session_state.nutrient_servings = 0
 
 # ------------------- UI -------------------
 st.title("🥗 Serving Tracker")
