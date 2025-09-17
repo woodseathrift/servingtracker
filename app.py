@@ -18,9 +18,7 @@ def load_data():
             .str.replace(" ", "_")
             .str.replace(r"[()]", "", regex=True)
         )
-
     return foods_df, nutrients_df, portions_df
-
 
 # Unpack correctly
 foods_df, nutrients_df, portions_df = load_data()
@@ -73,7 +71,7 @@ BAD_PHRASES = [
     "per cup of hot cereal",
     "100 calorie",
     "package",
-    "serving", 
+    "serving",
     "container"
 ]
 
@@ -157,8 +155,7 @@ def add_serving(density_type, amount=1.0):
         if st.session_state.nutrient_servings < 0:
             st.session_state.nutrient_servings = 0
 
-# --------------- CSS ---------------
-
+# ------------------- Global Styles -------------------
 st.markdown(
     """
     <style>
@@ -168,13 +165,12 @@ st.markdown(
             font-size: 1.5rem !important;
         }
     }
-
-    /* Override Streamlit mobile stacking behavior */
-    [data-testid="stHorizontalBlock"] {
-        flex-wrap: nowrap !important;
-    }
-    [data-testid="column"] {
-        min-width: 0 !important;
+    /* Force two-column layout everywhere */
+    .twocol {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        align-items: start;
     }
     </style>
     """,
@@ -183,25 +179,6 @@ st.markdown(
 
 # ------------------- UI -------------------
 st.title("🥗 Serving Tracker")
-
-# ------------------- Styles -------------------
-st.markdown(
-    """
-    <style>
-    @media (max-width: 600px) {
-        h1 {
-            font-size: 1.5rem !important;
-        }
-    }
-    .twocol {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1rem;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 
 # ------------------- Show tally -------------------
 st.subheader("Tally")
@@ -257,7 +234,7 @@ with st.container():
         search_clicked = st.button("🔍")
     st.markdown('</div>', unsafe_allow_html=True)
 
-if (query and query.strip()) or search_clicked:
+if ("query" in locals() and query and query.strip()) or ("search_clicked" in locals() and search_clicked):
     q = query.strip().lower()
     words = q.split()
     matches = foods_df.copy()
