@@ -81,7 +81,7 @@ def pick_fractional_serving(food_row, target_cal):
     kcal_per_100g = kcal_row.iloc[0]["energy_kcal"]
     kcal_per_g = kcal_per_100g / 100
 
-    # Get usable portions
+    # Get all usable portions
     portion_rows = portions_df[portions_df["food_code"] == food_row["food_code"]]
     usable_portions = []
     for _, row in portion_rows.iterrows():
@@ -89,46 +89,40 @@ def pick_fractional_serving(food_row, target_cal):
         if any(u in desc for u in COMMON_UNITS) and not any(bad in desc for bad in BAD_PHRASES):
             usable_portions.append(row)
 
-    # If no portions, fallback to grams directly
+    # If no usable portions → fallback to grams
     if not usable_portions:
         grams = round(target_cal / kcal_per_g)
-        return f"{grams} g", grams, round(grams * kcal_per_g)
+        return f"{grams} g (~{target_cal} kcal)", grams, target_cal
 
-    # Try fractions from 0.25 to 4.0 for all usable portions
+    # Try fractional increments (0.25, 0.5, 0.75, 1.0, ...)
     best = None
     for _, row in pd.DataFrame(usable_portions).iterrows():
-        base_grams = row["portion_weight_g"]
-        for f in [i * 0.25 for i in range(1, 33)]:  # 0.25x to 8x
-            grams_est = f * base_grams
-            kcal_est = grams_est * kcal_per_g
+        grams = row["portion_weight_g"]
+        kcal_per_portion = grams * kcal_per_g
+        for f in [i * 0.25 for i in range(1, 21)]:  # up to 5x
+            kcal_est = f * kcal_per_portion
             diff = abs(kcal_est - target_cal)
-            if best is None or diff < best[0]:
-                best = (diff, row, f, grams_est, kcal_est)
+            if best is None or diff < best[0] or (diff == best[0] and kcal_est <= target_cal):
+                best = (diff, row, f, grams, kcal_est)
 
-    # Unpack best
-    _, base_row, fraction, total_grams, approx_cal = best
-    desc = str(base_row["portion_description"]).lower()
-
-    # Clean description: strip any leading "1 " or "one "
+    # Use best option
+    _, base, factor, grams, approx_cal = best
+    desc = str(base["portion_description"]).lower()
     if desc.startswith("1 "):
         desc = desc[2:]
     elif desc.startswith("one "):
         desc = desc[4:]
 
-    # Format fraction + unit nicely
-    if fraction.is_integer():
-        amount_str = str(int(fraction))
+    total_grams = round(factor * grams)
+    approx_cal = round(approx_cal)
+
+    # Format clean fraction (no "1 0.25")
+    if factor.is_integer():
+        unit_text = f"{int(factor)} {desc.strip()}"
     else:
-        amount_str = str(fraction)
+        unit_text = f"{factor:.2f}".rstrip("0").rstrip(".") + f" {desc.strip()}"
 
-    unit_text = f"{amount_str} {desc.strip()}"
-
-    # Handle pluralization
-    if fraction > 1 and not desc.endswith("s"):
-        unit_text += "s"
-
-    return unit_text, round(total_grams), round(approx_cal)
-
+    return unit_text, total_grams, approx_cal
 
 def serving_for_food(food_row):
     code = str(food_row["food_code"])
