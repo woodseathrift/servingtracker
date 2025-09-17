@@ -151,8 +151,29 @@ def pick_fractional_serving(food_row, target_cal):
     # grams for that one serving, kcal for that one serving
     return fraction, unit, grams_per_serving, kcal_per_serving
 
+# --- category overrides ---
+# keys are substrings to look for in the food description (lowercased)
+# values are the forced density category
+CATEGORY_OVERRIDES = {
+    "juice": "Energy-dense",
+    "potato": "Energy-dense",
+    "potatoes": "Energy-dense",
+    "edamame": "Nutrient-dense",
+}
 
 def serving_for_food(food_row):
+    desc = str(food_row["main_food_description"]).lower()
+
+    # --- check overrides first ---
+    for keyword, forced_density in CATEGORY_OVERRIDES.items():
+        if keyword in desc:
+            if forced_density == "Energy-dense":
+                fraction, unit, grams, kcal = pick_fractional_serving(food_row, 100)
+            else:  # Nutrient-dense
+                fraction, unit, grams, kcal = pick_fractional_serving(food_row, 50)
+            return forced_density, fraction, unit, grams, kcal
+
+    # --- fallback: prefix-based classification ---
     code = str(food_row["food_code"])
     if code.startswith(("61", "63", "67", "72", "73", "74", "75", "76", "78")):
         density = "Nutrient-dense"
@@ -160,7 +181,9 @@ def serving_for_food(food_row):
     else:
         density = "Energy-dense"
         fraction, unit, grams, kcal = pick_fractional_serving(food_row, 100)
+
     return density, fraction, unit, grams, kcal
+
 
 # ------------------- Add Servings -------------------
 def add_serving(density_type, amount=1.0):
