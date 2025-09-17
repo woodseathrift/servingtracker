@@ -166,16 +166,42 @@ with col2:
         unsafe_allow_html=True,
     )
 
-# --- Search box with button ---
-col1, col2 = st.columns([4, 1])  # wide input, narrow button
-with col1:
-    query = st.text_input("Search for a food", value="", key="food_search")
-with col2:
-    search_clicked = st.button("🔍 Search")
+# --- Search box with inline button ---
+st.markdown(
+    """
+    <style>
+    div.stForm {
+        display: flex;
+        align-items: center;
+        max-width: 600px;
+    }
+    div.stForm > div:first-child {
+        flex: 1;
+    }
+    div.stForm input {
+        border-radius: 8px 0 0 8px !important;
+        border-right: none !important;
+    }
+    div.stForm button {
+        border-radius: 0 8px 8px 0 !important;
+        border-left: none !important;
+        min-width: 3em;
+        padding: 0.5em;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-if query or search_clicked:
+with st.form(key="search_form"):
+    cols = st.columns([1, 0.15])
+    with cols[0]:
+        query = st.text_input("Search for a food", value="", key="food_search", label_visibility="collapsed")
+    with cols[1]:
+        search_clicked = st.form_submit_button("🔍")
+
+if (query and query.strip()) or search_clicked:
     q = query.strip().lower()
-
     # --- Word-based search ---
     words = q.split()
     matches = foods_df.copy()
@@ -189,7 +215,6 @@ if query or search_clicked:
             f'{row["main_food_description"]} (#{row["food_code"]})'
             for _, row in matches.iterrows()
         ]
-
         choice = st.selectbox("Select a food", options, key="food_choice")
 
         if choice != "-- choose a food --":
