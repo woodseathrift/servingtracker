@@ -148,12 +148,6 @@ with col2:
 
 if query or search_clicked:
     q = query.strip().lower()
-    desc_series = foods_df['main_food_description'].fillna('').str.lower()
-
-    # Food search
-    matches = []
-    if query or search_clicked:
-    q = query.strip().lower()
 
     # --- Word-based search ---
     words = q.split()
