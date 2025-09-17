@@ -157,6 +157,30 @@ def add_serving(density_type, amount=1.0):
         if st.session_state.nutrient_servings < 0:
             st.session_state.nutrient_servings = 0
 
+# --------------- CSS ---------------
+
+st.markdown(
+    """
+    <style>
+    /* Reduce title size on small screens */
+    @media (max-width: 600px) {
+        h1 {
+            font-size: 1.5rem !important;
+        }
+    }
+
+    /* Override Streamlit mobile stacking behavior */
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+    }
+    [data-testid="column"] {
+        min-width: 0 !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # ------------------- UI -------------------
 st.title("🥗 Serving Tracker")
 
