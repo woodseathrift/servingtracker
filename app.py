@@ -1,98 +1,240 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
+import datetime
+import re
 
-# ---------- Load Data ----------
+# ------------------- Load Food Data -------------------
 @st.cache_data
-def load_foods():
-    foods = pd.read_csv("foods.csv", dtype={"food_code": str})
-    nutrients = pd.read_csv("nutrients.csv")
-    portions = pd.read_csv("portions.csv")
-    return foods, nutrients, portions
+def load_data():
+    foods_df = pd.read_csv("2017-2018 FNDDS At A Glance - Foods and Beverages.csv", skiprows=1)
+    nutrients_df = pd.read_csv("2017-2018 FNDDS At A Glance - FNDDS Nutrient Values.csv", skiprows=1)
+    portions_df = pd.read_csv("2017-2018 FNDDS At A Glance - Portions and Weights.csv", skiprows=1)
 
-foods, nutrients, portions = load_foods()
-
-# ---------- Settings ----------
-nutrient_dense_prefixes = {"61", "63", "67", "72", "73", "74", "75", "76", "78"}
-
-# ---------- Helper Functions ----------
-def pick_fractional_serving(food_row, target_kcal=100):
-    fcode = food_row["food_code"]
-    portion_rows = portions[portions["food_code"] == fcode]
-    nutrient_rows = nutrients[nutrients["food_code"] == fcode]
-
-    energy = nutrient_rows.loc[nutrient_rows["nutrient_name"].str.contains("Energy", case=False), "amount"]
-    if energy.empty:
-        return "No energy data", 0, 0, 0
-    kcal_per_100g = energy.iloc[0]
-    
-    best_diff = float("inf")
-    best = None
-
-    for _, row in portion_rows.iterrows():
-        grams = row["gram_weight"]
-        kcal = grams * kcal_per_100g / 100
-        mult = round(target_kcal / kcal / 0.25) * 0.25
-        adj_kcal = kcal * mult
-        diff = abs(adj_kcal - target_kcal)
-        if diff < best_diff and mult > 0:
-            best_diff = diff
-            best = (mult, row["portion_description"], grams * mult, adj_kcal)
-
-    if not best:
-        return "No valid portion", 0, 0, 0
-    
-    mult, desc, grams, kcal = best
-    if mult == 1:
-        serving_text = f"{desc} (≈{round(grams)} g, ~{round(kcal)} kcal)"
-    else:
-        serving_text = f"{mult} × {desc} (≈{round(grams)} g, ~{round(kcal)} kcal)"
-    return serving_text, grams, kcal
-
-def serving_for_food(food_row):
-    prefix = food_row["food_code"][:2]
-    serving_text, grams, kcal = pick_fractional_serving(food_row, 100 if prefix in nutrient_dense_prefixes else 200)
-    density = "Nutrient-dense" if prefix in nutrient_dense_prefixes else "Energy-dense"
-    return density, serving_text, grams, kcal
-
-# ---------- Streamlit UI ----------
-st.title("Serving Size Tracker")
-
-# Search bar + button
-col1, col2 = st.columns([4,1])
-with col1:
-    query = st.text_input("Search foods", key="food_search")
-with col2:
-    clicked = st.button("Enter")
-
-# Food search
-matches = []
-if query or clicked:
-    matches = foods[foods["main_food_description"].str.contains(query, case=False, na=False, regex=False)]
-
-options = ["-- choose a food --"] + [f"{r['main_food_description']} #{r['food_code']}" for _, r in matches.iterrows()]
-choice = st.selectbox("Results", options, key="food_choice", index=0)
-
-# Amount choice
-amt = st.selectbox("Amount", [0.25,0.5,0.75,1,1.25,1.5,2,3,4], key="amt_choice", index=3)
-
-# After the user picks a food
-if choice and choice != "-- choose a food --":
-    code = int(choice.split("#")[-1].strip())
-    food_row = foods.loc[foods["food_code"] == str(code)].iloc[0]
-
-    density, serving_text, base_grams, base_kcal = serving_for_food(food_row)
-
-    # Apply user amount choice
-    total_grams = round(base_grams * amt)
-    total_kcal = round(base_kcal * amt)
-
-    # Build display string
-    if amt == 1:
-        display_serving = f"{density}: {serving_text}"
-    else:
-        display_serving = (
-            f"{density}: {amt} × {serving_text} → (≈{total_grams} g, ~{total_kcal} kcal)"
+    # Normalize column names
+    for df in [foods_df, nutrients_df, portions_df]:
+        df.columns = (
+            df.columns.str.strip()
+            .str.lower()
+            .str.replace(" ", "_")
+            .str.replace(r"[()]", "", regex=True)
         )
 
-    st.write(display_serving)
+    return foods_df, nutrients_df, portions_df
+
+
+# Unpack correctly
+foods_df, nutrients_df, portions_df = load_data()
+
+# ------------------- Initialize State -------------------
+if "energy_servings" not in st.session_state:
+    st.session_state.energy_servings = 0.0
+if "nutrient_servings" not in st.session_state:
+    st.session_state.nutrient_servings = 0.0
+if "date" not in st.session_state:
+    st.session_state.date = datetime.date.today()
+if "selected_foods" not in st.session_state:
+    st.session_state.selected_foods = []
+if "clear_search" not in st.session_state:
+    st.session_state.clear_search = False
+if "food_search" not in st.session_state:
+    st.session_state.food_search = ""
+if "food_choice" not in st.session_state:
+    st.session_state.food_choice = "-- choose a food --"
+if "amt_choice" not in st.session_state:
+    st.session_state.amt_choice = 1
+
+# reset daily
+if st.session_state.date != datetime.date.today():
+    st.session_state.energy_servings = 0.0
+    st.session_state.nutrient_servings = 0.0
+    st.session_state.date = datetime.date.today()
+    st.session_state.selected_foods = []
+
+# ------------------- Serving Picker -------------------
+COMMON_UNITS = [
+    "cup", "cups", "tbsp", "tablespoon", "tablespoons",
+    "tsp", "teaspoon", "teaspoons", "slice", "slices",
+    "piece", "pieces", "package", "can", "bottle", "link",
+    "patty", "bar", "cookie", "egg", "container", "loaf",
+    "bun", "muffin", "cake", "donut", "taco", "sandwich",
+    "small", "medium", "large"
+]
+
+def pick_fractional_serving(food_row, target_cal):
+    kcal_row = nutrients_df[nutrients_df["food_code"] == food_row["food_code"]]
+    if kcal_row.empty:
+        return "No kcal data", 0, 0
+    kcal_per_100g = kcal_row.iloc[0]["energy_kcal"]
+    kcal_per_g = kcal_per_100g / 100
+
+    # Get all usable portions
+    portion_rows = portions_df[portions_df["food_code"] == food_row["food_code"]]
+    usable_portions = []
+    for _, row in portion_rows.iterrows():
+        desc = str(row["portion_description"]).lower()
+        if any(u in desc for u in COMMON_UNITS):
+            usable_portions.append(row)
+
+    # If no portions, fallback to grams
+    if not usable_portions:
+        grams = round(target_cal / kcal_per_g)
+        return f"{grams} g (~{target_cal} kcal)", grams, target_cal
+
+    # Try all fractions for all usable portions, pick closest kcal
+    best = None
+    for _, row in pd.DataFrame(usable_portions).iterrows():
+        grams = row["portion_weight_g"]
+        kcal_per_portion = grams * kcal_per_g
+        for f in [i * 0.25 for i in range(1, 17)]:  # 0.25 to 4.0
+            kcal_est = f * kcal_per_portion
+            diff = abs(kcal_est - target_cal)
+            if best is None or diff < best[0]:
+                best = (diff, row, f, kcal_per_portion, grams, kcal_est)
+
+    # Use best option
+    _, base, fraction, kcal_per_portion, grams, approx_cal = best
+    desc = str(base["portion_description"]).lower()
+    if desc.startswith("1 "):
+        desc = desc[2:]
+    elif desc.startswith("one "):
+        desc = desc[4:]
+
+    # Format fraction nicely
+    if fraction.is_integer():
+        fraction_str = str(int(fraction))
+    else:
+        fraction_str = str(fraction)
+
+    # Add plural if needed
+    if fraction.is_integer() and fraction > 1 and not desc.endswith("s"):
+        desc += "s"
+
+    total_grams = round(fraction * grams)
+    approx_cal = round(approx_cal)
+
+    # Return as: formatted text, base grams for 1.0 of that base unit, base kcal for 1.0 of that base unit
+    base_grams_for_fraction = total_grams
+    base_kcal_for_fraction = approx_cal
+    unit_text = desc.strip()
+
+    return unit_text, base_grams_for_fraction, base_kcal_for_fraction
+
+def serving_for_food(food_row):
+    code = str(food_row["food_code"])
+    if code.startswith(("61", "63", "67", "72", "73", "74", "75", "76", "78")):
+        density = "Nutrient-dense"
+        unit_desc, grams, kcal = pick_fractional_serving(food_row, 50)
+    else:
+        density = "Energy-dense"
+        unit_desc, grams, kcal = pick_fractional_serving(food_row, 100)
+    return density, unit_desc, grams, kcal
+
+# ------------------- Add Servings -------------------
+def add_serving(density_type, amount=1.0):
+    if density_type == "Energy-dense":
+        st.session_state.energy_servings += amount
+    else:
+        st.session_state.nutrient_servings += amount
+
+# ------------------- UI -------------------
+st.title("🥗 Serving Tracker")
+
+# --- Search box with button ---
+col1, col2 = st.columns([4, 1])  # wide input, narrow button
+with col1:
+    query = st.text_input("Search for a food", value="", key="food_search")
+with col2:
+    search_clicked = st.button("🔍 Search")
+
+if query or search_clicked:
+    q = query.strip().lower()
+    desc_series = foods_df['main_food_description'].fillna('').str.lower()
+
+    # Food search
+    matches = []
+    if query or clicked:
+        matches = foods[
+            foods["main_food_description"].str.contains(query, case=False, na=False, regex=False)
+        ]
+
+    if not matches.empty:
+        options = ["-- choose a food --"] + [
+            f'{row["main_food_description"]} (#{row["food_code"]})'
+            for _, row in matches.iterrows()
+        ]
+
+        choice = st.selectbox("Select a food", options, key="food_choice")
+
+        if choice != "-- choose a food --":
+            code = int(choice.split("#")[-1].strip(")"))
+            food_row = foods_df[foods_df["food_code"] == code].iloc[0]
+
+            density, unit_desc, base_grams, base_kcal = serving_for_food(food_row)
+            color = "#330000" if density == "Energy-dense" else "#003300"
+
+            amt = st.selectbox(
+                "Add servings",
+                [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+                index=3,
+                key="amt_choice"
+            )
+
+            total_grams = round(base_grams * amt)
+            total_kcal = round(base_kcal * amt)
+
+            unit_adj = unit_desc
+            if amt > 1 and not unit_desc.endswith("s"):
+                unit_adj += "s"
+
+            amt_str = str(int(amt)) if amt.is_integer() else str(amt)
+
+            display_serving = f"{amt_str} {unit_adj} (≈{total_grams} g, ~{total_kcal} kcal)"
+
+            st.markdown(
+                f"<div style='background-color:{color}; padding:8px; border-radius:8px;'>"
+                f"<b>{food_row['main_food_description']}</b><br>{density}: {display_serving}</div>",
+                unsafe_allow_html=True,
+            )
+
+            if st.button("Add to tally"):
+                add_serving(density, amt)
+                st.session_state.selected_foods.append({
+                    "code": code,
+                    "name": food_row["main_food_description"],
+                    "density": density,
+                    "amt": amt,
+                })
+
+                for k in ["food_search", "food_choice", "amt_choice"]:
+                    if k in st.session_state:
+                        del st.session_state[k]
+
+                st.rerun()
+
+# ------------------- Manual tally section -------------------
+st.subheader("Quick Add")
+col1, col2 = st.columns(2)
+with col1:
+    amt = st.selectbox("Serving increment", [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], index=3, key="energy_inc")
+    if st.button("⚡ Add Energy ⚡"):
+        add_serving("Energy-dense", amt)
+with col2:
+    amt = st.selectbox("Serving increment", [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], index=3, key="nutrient_inc")
+    if st.button("🌱 Add Nutrient 🌱"):
+        add_serving("Nutrient-dense", amt)
+
+# ------------------- Show tally -------------------
+st.subheader("Tally")
+col1, col2 = st.columns(2)
+with col1:
+    st.markdown(
+        f"<div style='background-color:#FF6666; color:black; padding:10px; border-radius:8px;'>"
+        f"⚡ Energy-dense servings: <b>{st.session_state.energy_servings:.2f}</b></div>",
+        unsafe_allow_html=True,
+    )
+with col2:
+    st.markdown(
+        f"<div style='background-color:#66FF66; color:black; padding:10px; border-radius:8px;'>"
+        f"🌱 Nutrient-dense servings: <b>{st.session_state.nutrient_servings:.2f}</b></div>",
+        unsafe_allow_html=True,
+    )
