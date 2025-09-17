@@ -68,7 +68,8 @@ BAD_PHRASES = [
     "added", 
     "on cereal", 
     "with milk", 
-    "per cup of hot cereal"
+    "per cup of hot cereal",
+    "100 calorie"
 ]
 
 def pick_fractional_serving(food_row, target_cal):
