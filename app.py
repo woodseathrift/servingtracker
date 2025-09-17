@@ -74,6 +74,82 @@ BAD_PHRASES = [
     "serving"
 ]
 
+import streamlit as st
+import pandas as pd
+import datetime
+import re
+
+# ------------------- Load Food Data -------------------
+@st.cache_data
+def load_data():
+    foods_df = pd.read_csv("2017-2018 FNDDS At A Glance - Foods and Beverages.csv", skiprows=1)
+    nutrients_df = pd.read_csv("2017-2018 FNDDS At A Glance - FNDDS Nutrient Values.csv", skiprows=1)
+    portions_df = pd.read_csv("2017-2018 FNDDS At A Glance - Portions and Weights.csv", skiprows=1)
+
+    # Normalize column names
+    for df in [foods_df, nutrients_df, portions_df]:
+        df.columns = (
+            df.columns.str.strip()
+            .str.lower()
+            .str.replace(" ", "_")
+            .str.replace(r"[()]", "", regex=True)
+        )
+
+    return foods_df, nutrients_df, portions_df
+
+
+# Unpack correctly
+foods_df, nutrients_df, portions_df = load_data()
+
+# ------------------- Initialize State -------------------
+if "energy_servings" not in st.session_state:
+    st.session_state.energy_servings = 0.0
+if "nutrient_servings" not in st.session_state:
+    st.session_state.nutrient_servings = 0.0
+if "date" not in st.session_state:
+    st.session_state.date = datetime.date.today()
+if "selected_foods" not in st.session_state:
+    st.session_state.selected_foods = []
+if "clear_search" not in st.session_state:
+    st.session_state.clear_search = False
+if "food_search" not in st.session_state:
+    st.session_state.food_search = ""
+if "food_choice" not in st.session_state:
+    st.session_state.food_choice = "-- choose a food --"
+if "amt_choice" not in st.session_state:
+    st.session_state.amt_choice = 1
+
+# reset daily
+if st.session_state.date != datetime.date.today():
+    st.session_state.energy_servings = 0.0
+    st.session_state.nutrient_servings = 0.0
+    st.session_state.date = datetime.date.today()
+    st.session_state.selected_foods = []
+
+# ------------------- Serving Picker -------------------
+COMMON_UNITS = [
+    "cup", "cups", "tbsp", "tablespoon", "tablespoons",
+    "tsp", "teaspoon", "teaspoons", "slice", "slices",
+    "piece", "pieces", "package", "can", "bottle", "link",
+    "patty", "bar", "cookie", "egg", "container", "loaf",
+    "bun", "muffin", "cake", "donut", "taco", "sandwich",
+    "small", "medium", "large"
+]
+
+BAD_PHRASES = [
+    "guideline amount", 
+    "as consumed", 
+    "recipe", 
+    "per 100", 
+    "added", 
+    "on cereal", 
+    "with milk", 
+    "per cup of hot cereal",
+    "100 calorie",
+    "package",
+    "serving"
+]
+
 def pick_fractional_serving(food_row, target_cal):
     kcal_row = nutrients_df[nutrients_df["food_code"] == food_row["food_code"]]
     if kcal_row.empty:
@@ -89,38 +165,38 @@ def pick_fractional_serving(food_row, target_cal):
         if any(u in desc for u in COMMON_UNITS) and not any(bad in desc for bad in BAD_PHRASES):
             usable_portions.append(row)
 
-    # If no usable portions → fallback to grams
+    # If no portions, fallback to grams
     if not usable_portions:
         grams = round(target_cal / kcal_per_g)
         return f"{grams} g (~{target_cal} kcal)", grams, target_cal
 
-    # Try fractional increments (0.25, 0.5, 0.75, 1.0, ...)
+    # Try all fractions for all usable portions, pick closest kcal
     best = None
     for _, row in pd.DataFrame(usable_portions).iterrows():
         grams = row["portion_weight_g"]
         kcal_per_portion = grams * kcal_per_g
-        for f in [i * 0.25 for i in range(1, 21)]:  # up to 5x
+        for f in [i * 0.25 for i in range(1, 17)]:  # 0.25 to 4.0
             kcal_est = f * kcal_per_portion
             diff = abs(kcal_est - target_cal)
-            if best is None or diff < best[0] or (diff == best[0] and kcal_est <= target_cal):
-                best = (diff, row, f, grams, kcal_est)
+            if best is None or diff < best[0]:
+                best = (diff, row, f, kcal_per_portion, grams, kcal_est)
 
     # Use best option
-    _, base, factor, grams, approx_cal = best
-    desc = str(base["portion_description"]).lower()
-    if desc.startswith("1 "):
-        desc = desc[2:]
-    elif desc.startswith("one "):
-        desc = desc[4:]
+    _, base, factor, kcal_per_portion, grams, approx_cal = best
+
+    # --- Format serving text cleanly ---
+    desc = str(base["portion_description"]).lower().strip()
+    # Remove leading numbers from USDA desc (e.g. "0.25 cup" -> "cup")
+    desc = re.sub(r"^[\d\s\/\.]+", "", desc).strip()
 
     total_grams = round(factor * grams)
     approx_cal = round(approx_cal)
 
-    # Format clean fraction (no "1 0.25")
+    # Build unit text in decimal style
     if factor.is_integer():
-        unit_text = f"{int(factor)} {desc.strip()}"
+        unit_text = f"{int(factor)} {desc}"
     else:
-        unit_text = f"{factor:.2f}".rstrip("0").rstrip(".") + f" {desc.strip()}"
+        unit_text = f"{factor:.2f}".rstrip("0").rstrip(".") + f" {desc}"
 
     return unit_text, total_grams, approx_cal
 
