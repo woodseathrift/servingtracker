@@ -344,7 +344,7 @@ with col1:
         index=3,
         key="energy_inc",
     )
-    if st.button("⚡ Add Energy ⚡"):
+    if st.button("⚡ Add Energy"):
         add_serving("Energy-dense", amt)
         st.rerun()
 with col2:
@@ -354,7 +354,7 @@ with col2:
         index=3,
         key="nutrient_inc",
     )
-    if st.button("🌱 Add Nutrient 🌱"):
+    if st.button("🌱 Add Nutrient"):
         add_serving("Nutrient-dense", amt)
         st.rerun()
 
@@ -368,7 +368,7 @@ with col1:
         index=3,
         key="energy_dec",
     )
-    if st.button("⚡ Remove Energy ⚡"):
+    if st.button("⚡ Remove Energy"):
         add_serving("Energy-dense", -amt)
         st.rerun()
 with col2:
@@ -378,7 +378,7 @@ with col2:
         index=3,
         key="nutrient_dec",
     )
-    if st.button("🌱 Remove Nutrient 🌱"):
+    if st.button("🌱 Remove Nutrient"):
         add_serving("Nutrient-dense", -amt)
         st.rerun()
 
